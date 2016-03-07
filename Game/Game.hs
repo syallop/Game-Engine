@@ -21,43 +21,61 @@ data Game t = Game
   ,_camera       :: Camera t
   }
 
-initialGame :: Game TileType
-initialGame = Game quit camera
-  where
-    camera :: Camera TileType
-    camera = panBottomEdge $ fromJust $ mkCamera (V2 width height)
-                                                 (V4 0 (tilesWidth tileColumns) (tilesHeight tileColumns) 0)
-                                                 tiles
-                                                 subject
+initialGame :: Renderer -> CInt -> CInt -> IO (Game TileType)
+initialGame renderer width height = do
+  -- Grab some textures..
+  [ redTexture
+   ,greenTexture
+   ,blueTexture
+   ,blackTexture
+   ,whiteTexture
+   ]<- mapM (loadTexture renderer)
+                   ["red.bmp"
+                   ,"green.bmp"
+                   ,"blue.bmp"
+                   ,"black.bmp"
+                   ,"white.bmp"
+                   ]
+  let tileSet :: M.Map TileType TileInfo
+      tileSet = M.fromList [(Floor    ,InfoTextured greenTexture)
+                           ,(Ceiling  ,InfoTextured blueTexture)
+                           ,(WallLeft ,InfoTextured blueTexture)
+                           ,(WallRight,InfoTextured blackTexture)
+                           ,(Air      ,InfoTextured whiteTexture)
+                           ]
 
-    -- width and height of the screen/ camera
-    width  = 640
-    height = 480
+  return $ Game quit (initialCamera tileSet)
+  where
+    initialCamera :: TileSet TileType -> Camera TileType
+    initialCamera tileSet = panBottomEdge $ fromJust $ mkCamera (V2 width height)
+                                                                (V4 0 (tilesWidth tileColumns) (tilesHeight tileColumns) 0)
+                                                                (exampleTiles tileSet)
+                                                                subject
 
     -- whether to quit
     quit   = False
 
     -- 'the player'
-    subject = Subject $ moveR tileSize $ moveD (height - (2* tileSize)) $ tile red (P $ V2 0 0) tileSize
+    subject = Subject $ moveR tileSize $ moveD (height - (2* tileSize)) $ colorTile red (P $ V2 0 0) tileSize
 
     -- unit radius of all tiles
     tileSize = 32 -- radius of tiles
 
     -- The specific configuration of tiles
-    tiles = fromJust $ mkTiles tileColumns tileset tileSize
+    exampleTiles tileSet = fromJust $ mkTiles tileColumns tileSet tileSize
 
     -- Columns of rows of tiletypes
     tileColumns = TileColumn $ (replicate 23 line) ++ [TileRow $ replicate 32 Floor]
       where line = TileRow $ WallLeft : (replicate 30 Air) ++ [WallRight]
 
     -- Map each tile type to info describing it
-    tileset = M.fromList
-      [(Floor,TileInfo green)
-      ,(Ceiling,TileInfo blue)
-      ,(WallLeft,TileInfo blue)
-      ,(WallRight,TileInfo black)
-      ,(Air,TileInfo white)
-      ]
+    {-tileset = M.fromList-}
+      {-[(Floor,InfoColored green)-}
+      {-,(Ceiling,InfoColored blue)-}
+      {-,(WallLeft,InfoColored blue)-}
+      {-,(WallRight,InfoColored black)-}
+      {-,(Air,InfoColored white)-}
+      {-]-}
 
 data Command
   = MoveLeft
@@ -95,8 +113,10 @@ initializeWindow width height = do
 
 main :: IO ()
 main = do
-  let game = initialGame
-  (window,renderer) <- initializeWindow (width . _camera $ game) (height . _camera $ game)
+  let w = 640
+      h = 480
+  (window,renderer) <- initializeWindow w h
+  game <- initialGame renderer w h
   gameLoop (window,renderer) game
 
 toCommand :: Event -> Maybe Command
