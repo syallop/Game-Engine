@@ -55,6 +55,16 @@ data Subject = Subject
   {_subjectTile :: Tile
   }
 
+-- Subjects position relative to the camera
+subjectCameraPosX :: Subject -> CInt
+subjectCameraPosX = posX . _subjectTile
+
+subjectCameraPosY :: Subject -> CInt
+subjectCameraPosY = posY . _subjectTile
+
+subjectRadius :: Subject -> CInt
+subjectRadius = radius . _subjectTile
+
 -- The width of the frame the camera is looking at
 frameWidth :: Camera t -> CInt
 frameWidth = _width
@@ -65,20 +75,20 @@ frameHeight = _height
 
 -- pan a distance right in the X axis
 panX :: CInt -> Camera t -> Camera t
-panX d c = let x' = (_panX c) - d in if (_boundaryRight c) < x' then c else c{_panX = x'}
+panX d c = let x' = (_panX c) + d in c{_panX = x'}
 
 -- pan a distance down in the Y axis
 panY :: CInt -> Camera t -> Camera t
-panY d c = let y' = (_panY c) + d in if (_boundaryUp c)    < y' then c else c{_panY = y'}
+panY d c = let y' = (_panY c) + d in c{_panY = y'}
 
 
 -- pan a single unit right
 panRight :: Camera t -> Camera t
-panRight = panX 1
+panRight = panX (-1)
 
 -- pan a single unit left
 panLeft :: Camera t -> Camera t
-panLeft  = panX (-1)
+panLeft  = panX 1
 
 -- pan a single unit up
 panUp :: Camera t -> Camera t
@@ -156,15 +166,29 @@ shoot c renderer = do
 
   present renderer
 
--- TODO
+
 -- move the subject right if:
 -- - They do not leave the boundary
--- - They do not collide with something solid
--- - They do not collide with something harmful
--- Pan the camera right to follow them if possible.
+-- - TODO: They do not collide with something solid
 moveSubjectRight :: Camera t -> Camera t
-moveSubjectRight c = panRight c
+moveSubjectRight c =
+  let sx             = subjectCameraPosX . _subject $ c
+      rx             = subjectRadius . _subject $ c
+      xPanning       = _panX c
+      absoluteRightX = (sx + rx) - xPanning
+     in if (absoluteRightX + 1) < (_boundaryRight c)
+          then panRight c
+          else c
 
+-- move the subject left if:
+-- - They do not leave the boundary
+-- - TODO: They do not collide with something solid
 moveSubjectLeft :: Camera t -> Camera t
-moveSubjectLeft c = panLeft c
+moveSubjectLeft c =
+  let sx            = subjectCameraPosX . _subject $ c
+      xPanning      = _panX c
+      absoluteLeftX = sx - xPanning
+     in if (_boundaryLeft c) <= (absoluteLeftX - 1)
+          then panLeft c
+          else c
 

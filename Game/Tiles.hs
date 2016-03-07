@@ -33,9 +33,11 @@ import Game.Tile
 data TileInfo
   = InfoColored
     {_tileInfoColor   :: TileColor
+    ,_tileSolid       :: Bool
     }
   | InfoTextured
     {_tileInfoTexture :: Texture
+    ,_tileSolid       :: Bool
     }
 
 -- Map elements of a tile type 't' to their info
@@ -107,9 +109,91 @@ renderTiles offset (screenWidth,screenHeight) renderer tiles = do
 -- Make a new instance tile from a tile info at the given position and radius
 tileInfoInstance :: TileInfo -> Point V2 CInt -> CInt -> Tile
 tileInfoInstance inf pos radius = case inf of
-  InfoColored c
+  InfoColored c _
     -> colorTile c pos radius
 
-  InfoTextured t
+  InfoTextured t _
     -> textureTile t pos radius
+
+
+-- Does a tile collide with any solid tiles it would cover?
+collides :: Ord t => Tile -> Tiles t -> Bool
+collides t ts = case covers t ts of
+
+  -- No tiles covered => out of range => no collision
+  Nothing
+    -> False
+
+  -- A range of tiles are covered. If any of them are solid => collision
+  Just range
+    -> any (`isSolidAt` ts) (indexesCovered range)
+
+-- The tile indexes covered by a range V4 x0 x1 y0 y1
+indexesCovered :: V4 CInt -> [V2 CInt]
+indexesCovered (V4 x0 x1 y0 y1) = [V2 x y | x <- [x0..x1], y <- [y0..y1]]
+
+-- a range of x indexes, then y indexes a tile would cover if placed over tiles.
+-- Nothing if it falls outside the range.
+-- The components 1,2 and 3,4 will always increase
+covers :: Tile -> Tiles t -> Maybe (V4 CInt)
+covers t ts = do
+  let tRadius = radius t
+      x0 = posX t
+      x1 = x0 + tRadius
+      y0 = posY t
+      y1 = y0 + tRadius
+      unitSize = _tileUnitSize ts
+
+      tl = V2 x0 y0
+      br = V2 x1 y1
+
+  (V2 x0Ix y0Ix) <- posToTileIx tl ts
+  (V2 x1Ix y1Ix) <- posToTileIx br ts
+  return $ V4 x0Ix x1Ix y0Ix y1Ix
+
+-- convert a position into an index within a tile row/ column
+posToTileIx :: V2 CInt -> Tiles t -> Maybe (V2 CInt)
+posToTileIx (V2 x y) ts =
+  let unitSize = _tileUnitSize ts
+      xIx = floor $ (fromIntegral x) / (fromIntegral unitSize)
+      yIx = floor $ (fromIntegral y) / (fromIntegral unitSize)
+     in if indexInRange (V2 xIx yIx) ts
+          then Just (V2 xIx yIx) -- within tile range
+          else Nothing           -- outside tile range
+
+-- Is a tileIndex within the tiles?
+indexInRange :: V2 CInt -> Tiles t -> Bool
+indexInRange (V2 xIx yIx) ts = (0 <= xIx) && (xIx < (tilesWidth . _tileColumns $ ts))
+                            && (0 <= yIx) && (yIx < (tilesHeight . _tileColumns $ ts))
+
+-- Is a tile solid at the given index? False if out of range.
+isSolidAt :: Ord t => V2 CInt -> Tiles t -> Bool
+isSolidAt ix ts = maybe False isSolid $ indexTileInfo ix ts
+
+-- Is a tile solid?
+isSolid :: TileInfo -> Bool
+isSolid = _tileSolid
+
+-- Index the tileinfo at row,column
+indexTileInfo :: Ord t => V2 CInt -> Tiles t -> Maybe TileInfo
+indexTileInfo (V2 rowIx colIx) ts = do
+  tileRow <- indexTileColumn (_tileColumns ts) colIx
+  t       <- indexTileRow tileRow rowIx
+  M.lookup t (_tileSet ts)
+
+-- index a row from a 'tilecolumn'
+indexTileColumn :: TileColumn t -> CInt -> Maybe (TileRow t)
+indexTileColumn (TileColumn [])     ix = Nothing
+indexTileColumn (TileColumn (r:rs)) ix
+  | ix < 0    = Nothing
+  | ix == 0   = Just r
+  | otherwise = indexTileColumn (TileColumn rs) ix
+
+-- index a t from a row
+indexTileRow :: TileRow t -> CInt -> Maybe t
+indexTileRow (TileRow [])     _ = Nothing
+indexTileRow (TileRow (t:ts)) ix
+  | ix < 0    = Nothing
+  | ix == 0   = Just t
+  | otherwise = indexTileRow (TileRow ts) (ix-1)
 

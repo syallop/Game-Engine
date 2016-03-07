@@ -29,53 +29,49 @@ initialGame renderer width height = do
    ,blueTexture
    ,blackTexture
    ,whiteTexture
-   ]<- mapM (loadTexture renderer)
+   ,playerTexture
+   ] <- mapM (loadTexture renderer)
                    ["red.bmp"
                    ,"green.bmp"
                    ,"blue.bmp"
                    ,"black.bmp"
                    ,"white.bmp"
+                   ,"playerT.bmp"
                    ]
+
+  -- Map each tile to info describing it
   let tileSet :: M.Map TileType TileInfo
-      tileSet = M.fromList [(Floor    ,InfoTextured greenTexture)
-                           ,(Ceiling  ,InfoTextured blueTexture)
-                           ,(WallLeft ,InfoTextured blueTexture)
-                           ,(WallRight,InfoTextured blackTexture)
-                           ,(Air      ,InfoTextured whiteTexture)
+      tileSet = M.fromList [(Floor    ,InfoTextured greenTexture True)
+                           ,(Ceiling  ,InfoTextured blueTexture  True)
+                           ,(WallLeft ,InfoTextured blueTexture  True)
+                           ,(WallRight,InfoTextured blackTexture True)
+                           ,(Air      ,InfoTextured whiteTexture False)
                            ]
+      tileSize = 64
 
-  return $ Game quit (initialCamera tileSet)
-  where
-    initialCamera :: TileSet TileType -> Camera TileType
-    initialCamera tileSet = panBottomEdge $ fromJust $ mkCamera (V2 width height)
-                                                                (V4 0 (tilesWidth tileColumns) (tilesHeight tileColumns) 0)
-                                                                (exampleTiles tileSet)
-                                                                subject
+      subjectTile = textureTile playerTexture (P $ V2 0 0) tileSize
 
-    -- whether to quit
-    quit   = False
+      line = TileRow $ WallLeft : (replicate 10 Air) ++ [WallRight]
+      -- tileHeight ~ 8, tileWidth ~ 12
+      tileColumns  = TileColumn $ (replicate 7 line) ++ [TileRow $ replicate 12 Floor]
+      exampleTiles = fromJust $ mkTiles tileColumns tileSet tileSize
 
-    -- 'the player'
-    subject = Subject $ moveR tileSize $ moveD (height - (2* tileSize)) $ colorTile red (P $ V2 0 0) tileSize
+  {-let subject = Subject $ moveR tileSize $ moveD tileSize $ moveD (height - (2* tileSize)) subjectTile-}
+  let subject = Subject $ moveR tileSize $ subjectTile
 
-    -- unit radius of all tiles
-    tileSize = 32 -- radius of tiles
+  let quit = False
 
-    -- The specific configuration of tiles
-    exampleTiles tileSet = fromJust $ mkTiles tileColumns tileSet tileSize
+  let boundaryLeft   = 0
+      boundaryRight  = (tilesWidth tileColumns) * tileSize
+      boundaryTop    = 0
+      boundaryBottom = (tilesHeight tileColumns) * tileSize
 
-    -- Columns of rows of tiletypes
-    tileColumns = TileColumn $ (replicate 23 line) ++ [TileRow $ replicate 32 Floor]
-      where line = TileRow $ WallLeft : (replicate 30 Air) ++ [WallRight]
+  let initialCamera  = panBottomEdge $ fromJust $ mkCamera (V2 width height)
+                                                           (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
+                                                           exampleTiles
+                                                           subject
 
-    -- Map each tile type to info describing it
-    {-tileset = M.fromList-}
-      {-[(Floor,InfoColored green)-}
-      {-,(Ceiling,InfoColored blue)-}
-      {-,(WallLeft,InfoColored blue)-}
-      {-,(WallRight,InfoColored black)-}
-      {-,(Air,InfoColored white)-}
-      {-]-}
+  return $ Game quit initialCamera
 
 data Command
   = MoveLeft
