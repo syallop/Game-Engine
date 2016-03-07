@@ -51,9 +51,8 @@ initialGame renderer width height = do
 
       subjectTile = textureTile playerTexture (P $ V2 0 0) tileSize
 
-      line = TileRow $ WallLeft : (replicate 10 Air) ++ [WallRight]
-      -- tileHeight ~ 8, tileWidth ~ 12
-      tileColumns  = TileColumn $ (replicate 7 line) ++ [TileRow $ replicate 12 Floor]
+      line = Row $ WallLeft : (replicate 10 Air) ++ [WallRight]
+      tileColumns  = Rows $ (replicate 7 line) ++ [Row $ replicate 12 Floor]
       exampleTiles = fromJust $ mkTiles tileColumns tileSet tileSize
 
   {-let subject = Subject $ moveR tileSize $ moveD tileSize $ moveD (height - (2* tileSize)) subjectTile-}

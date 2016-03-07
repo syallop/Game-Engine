@@ -3,7 +3,7 @@
 -- that all tiles of that type have.
 module Game.Tiles
   ( Tiles()
-  ,_tileColumns
+  ,_tileRows
   ,_tileUnitSize
 
   , TileInfo(..)
@@ -13,7 +13,7 @@ module Game.Tiles
   , mkTiles
   , renderTiles
 
-  ,TileColumn(..),TileRow(..)
+  ,Rows(..),Row(..)
   ,tilesHeight
   ,tilesWidth
   )
@@ -43,33 +43,36 @@ data TileInfo
 -- Map elements of a tile type 't' to their info
 type TileSet t = M.Map t TileInfo
 
--- A column of rows of some tile type 't'
-newtype TileColumn t = TileColumn {_tileColumn :: [TileRow t]}
-newtype TileRow t = TileRow {_tileRow :: [t]}
+-- Many rows of some tile type 't'
+newtype Rows t = Rows {_rows :: [Row t]}
+newtype Row t = Row {_row :: [t]}
 
 -- A specific collection of tiles 't' from some TileSet
 data Tiles t = Tiles
-  {_tileColumns  :: TileColumn t
+  {_tileRows     :: Rows t
   ,_tileSet      :: TileSet t
   ,_tileUnitSize :: CInt
   }
 
+type TilesIndex  = V2 CInt
+type CoversTiles = V4 CInt
+
 -- The height is the number of rows
-tilesHeight :: TileColumn t -> CInt
-tilesHeight = toEnum . length . _tileColumn
+tilesHeight :: Rows t -> CInt
+tilesHeight = toEnum . length . _rows
 
 -- The width is the longest row
-tilesWidth :: TileColumn t -> CInt
-tilesWidth  = toEnum . maximum . map (length . _tileRow) . _tileColumn
+tilesWidth :: Rows t -> CInt
+tilesWidth  = toEnum . maximum . map (length . _row) . _rows
 
 -- Create Tiles on a TileSet, each with a defined unit size.
 --
 -- TODO:
--- - Check all tiles mentioned in a TileColumn have info in the TileSet.
--- ? Check all the rows in the TileColumn have the same length?
-mkTiles :: TileColumn t -> TileSet t -> CInt -> Maybe (Tiles t)
-mkTiles tileColumns tileset size
-  = Just $ Tiles{_tileColumns  = tileColumns
+-- - Check all tiles mentioned in Rows have info in the TileSet.
+-- ? Check all the rows in the Rows have the same length?
+mkTiles :: Rows t -> TileSet t -> CInt -> Maybe (Tiles t)
+mkTiles rows tileset size
+  = Just $ Tiles{_tileRows     = rows
                 ,_tileSet      = tileset
                 ,_tileUnitSize = size
                 }
@@ -80,7 +83,7 @@ renderTiles :: Ord t => V2 CInt -> (CInt,CInt) -> Renderer -> Tiles t -> IO ()
 renderTiles offset (screenWidth,screenHeight) renderer tiles = do
     let tileUnitSize = _tileUnitSize tiles
     -- TODO:
-    -- - Due to the structure of TileColumns, and TileRows, as soon as we reach a tile we dont need to
+    -- - Due to the structure of Rows, and Row, as soon as we reach a tile we dont need to
     --   render we can stop checking the rest.
     -- - We could also calculate where to skip to begin the drawing instead of checking every tile
     --
@@ -100,11 +103,11 @@ renderTiles offset (screenWidth,screenHeight) renderer tiles = do
                                              return (x+tileUnitSize)
                            )
                            (0 :: CInt)
-                           (_tileRow row)
+                           (_row row)
                    return (y+tileUnitSize)
            )
            (0 :: CInt)
-           (_tileColumn . _tileColumns $ tiles)
+           (_rows . _tileRows $ tiles)
 
 -- Make a new instance tile from a tile info at the given position and radius
 tileInfoInstance :: TileInfo -> Point V2 CInt -> CInt -> Tile
@@ -129,13 +132,13 @@ collides t ts = case covers t ts of
     -> any (`isSolidAt` ts) (indexesCovered range)
 
 -- The tile indexes covered by a range V4 x0 x1 y0 y1
-indexesCovered :: V4 CInt -> [V2 CInt]
+indexesCovered :: CoversTiles -> [TilesIndex]
 indexesCovered (V4 x0 x1 y0 y1) = [V2 x y | x <- [x0..x1], y <- [y0..y1]]
 
 -- a range of x indexes, then y indexes a tile would cover if placed over tiles.
 -- Nothing if it falls outside the range.
 -- The components 1,2 and 3,4 will always increase
-covers :: Tile -> Tiles t -> Maybe (V4 CInt)
+covers :: Tile -> Tiles t -> Maybe CoversTiles
 covers t ts = do
   let tRadius = radius t
       x0 = posX t
@@ -152,7 +155,7 @@ covers t ts = do
   return $ V4 x0Ix x1Ix y0Ix y1Ix
 
 -- convert a position into an index within a tile row/ column
-posToTileIx :: V2 CInt -> Tiles t -> Maybe (V2 CInt)
+posToTileIx :: V2 CInt -> Tiles t -> Maybe TilesIndex
 posToTileIx (V2 x y) ts =
   let unitSize = _tileUnitSize ts
       xIx = floor $ (fromIntegral x) / (fromIntegral unitSize)
@@ -162,12 +165,12 @@ posToTileIx (V2 x y) ts =
           else Nothing           -- outside tile range
 
 -- Is a tileIndex within the tiles?
-indexInRange :: V2 CInt -> Tiles t -> Bool
-indexInRange (V2 xIx yIx) ts = (0 <= xIx) && (xIx < (tilesWidth . _tileColumns $ ts))
-                            && (0 <= yIx) && (yIx < (tilesHeight . _tileColumns $ ts))
+indexInRange :: TilesIndex -> Tiles t -> Bool
+indexInRange (V2 xIx yIx) ts = (0 <= xIx) && (xIx < (tilesWidth . _tileRows $ ts))
+                            && (0 <= yIx) && (yIx < (tilesHeight . _tileRows $ ts))
 
 -- Is a tile solid at the given index? False if out of range.
-isSolidAt :: Ord t => V2 CInt -> Tiles t -> Bool
+isSolidAt :: Ord t => TilesIndex -> Tiles t -> Bool
 isSolidAt ix ts = maybe False isSolid $ indexTileInfo ix ts
 
 -- Is a tile solid?
@@ -175,25 +178,25 @@ isSolid :: TileInfo -> Bool
 isSolid = _tileSolid
 
 -- Index the tileinfo at row,column
-indexTileInfo :: Ord t => V2 CInt -> Tiles t -> Maybe TileInfo
+indexTileInfo :: Ord t => TilesIndex -> Tiles t -> Maybe TileInfo
 indexTileInfo (V2 rowIx colIx) ts = do
-  tileRow <- indexTileColumn (_tileColumns ts) colIx
+  tileRow <- indexTileColumn (_tileRows ts) colIx
   t       <- indexTileRow tileRow rowIx
   M.lookup t (_tileSet ts)
 
 -- index a row from a 'tilecolumn'
-indexTileColumn :: TileColumn t -> CInt -> Maybe (TileRow t)
-indexTileColumn (TileColumn [])     ix = Nothing
-indexTileColumn (TileColumn (r:rs)) ix
+indexTileColumn :: Rows t -> CInt -> Maybe (Row t)
+indexTileColumn (Rows [])     ix = Nothing
+indexTileColumn (Rows (r:rs)) ix
   | ix < 0    = Nothing
   | ix == 0   = Just r
-  | otherwise = indexTileColumn (TileColumn rs) ix
+  | otherwise = indexTileColumn (Rows rs) ix
 
 -- index a t from a row
-indexTileRow :: TileRow t -> CInt -> Maybe t
-indexTileRow (TileRow [])     _ = Nothing
-indexTileRow (TileRow (t:ts)) ix
+indexTileRow :: Row t -> CInt -> Maybe t
+indexTileRow (Row [])     _ = Nothing
+indexTileRow (Row (t:ts)) ix
   | ix < 0    = Nothing
   | ix == 0   = Just t
-  | otherwise = indexTileRow (TileRow ts) (ix-1)
+  | otherwise = indexTileRow (Row ts) (ix-1)
 

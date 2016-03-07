@@ -104,7 +104,7 @@ panDown  = panY (-1)
 -- pan to the bottom edge of the background tiles
 panBottomEdge :: Camera t -> Camera t
 panBottomEdge c =
-  let tsHeight = tilesHeight (_tileColumns . _background $ c)
+  let tsHeight = tilesHeight (_tileRows . _background $ c)
       tileSize = _tileUnitSize . _background $ c
       bottomDistance = (tsHeight * tileSize) - (frameHeight c)
      in panY (-1 * bottomDistance) c
