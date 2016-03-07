@@ -19,6 +19,8 @@ module Game.Camera
   ,Subject(..)
   ,moveSubjectRight
   ,moveSubjectLeft
+  ,moveSubjectDown
+  ,moveSubjectUp
 
   ,shoot
   ) where
@@ -190,5 +192,24 @@ moveSubjectLeft c =
       absoluteLeftX = sx - xPanning
      in if (_boundaryLeft c) <= (absoluteLeftX - 1)
           then panLeft c
+          else c
+
+moveSubjectUp :: Camera t -> Camera t
+moveSubjectUp c =
+  let sy           = subjectCameraPosY . _subject $ c
+      yPanning     = _panY c
+      absoluteTopY = sy - yPanning
+     in if (_boundaryUp c) < (absoluteTopY - 1)
+          then panUp c
+          else c
+
+moveSubjectDown :: Camera t -> Camera t
+moveSubjectDown c =
+  let sy              = subjectCameraPosY . _subject $ c
+      ry              = subjectRadius . _subject $ c
+      yPanning        = _panY c
+      absoluteBottomY = (sy + ry) - yPanning
+     in if (absoluteBottomY + 1) < (_boundaryDown c)
+          then panDown c
           else c
 

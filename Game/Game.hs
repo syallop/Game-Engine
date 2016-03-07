@@ -57,7 +57,7 @@ initialGame renderer width height = do
       exampleTiles = fromJust $ mkTiles tileColumns tileSet tileSize
 
   {-let subject = Subject $ moveR tileSize $ moveD tileSize $ moveD (height - (2* tileSize)) subjectTile-}
-  let subject = Subject $ moveR tileSize $ subjectTile
+  let subject = Subject $ moveR tileSize $ moveD (height - (2 * tileSize)) $ subjectTile
 
   let quit = False
 
@@ -144,10 +144,10 @@ runCommand c g = case c of
     -> g{_camera = moveSubjectRight $ _camera g}
 
   MoveUp
-    -> g
+    -> g{_camera = moveSubjectUp $ _camera g}
 
   MoveDown
-    -> g
+    -> g{_camera = moveSubjectDown $ _camera g}
 
   Shoot
     -> g
