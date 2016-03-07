@@ -6,6 +6,12 @@ module Game.Tiles
   , renderTiles
 
   ,TileColumn(..),TileRow(..)
+
+  ,tilesHeight
+  ,tilesWidth
+
+  ,_tileColumns
+  ,_tileUnitSize
   )
   where
 
@@ -37,6 +43,12 @@ data Tiles t = Tiles
   ,_tileSet      :: TileSet t
   ,_tileUnitSize :: CInt
   }
+
+tilesHeight :: TileColumn t -> CInt
+tilesHeight = toEnum . length . _tileColumn
+
+tilesWidth :: TileColumn t -> CInt
+tilesWidth  = toEnum . maximum . map (length . _tileRow) . _tileColumn
 
 mkTiles :: TileColumn t -> TileSet t -> CInt -> Maybe (Tiles t)
 mkTiles tileColumns tileset size

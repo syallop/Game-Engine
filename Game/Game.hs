@@ -14,37 +14,43 @@ import Data.Maybe
 
 import Game.Tile
 import Game.Tiles
+import Game.Camera
 
 data Game t = Game
-  {_playerTile   :: Tile
-  ,_health       :: CInt
-  ,_quit         :: Bool
-  ,_screenWidth  :: CInt
-  ,_screenHeight :: CInt
-  ,_tiles        :: Tiles t
-
-  -- 'camera' offset.
-  ,_panX         :: CInt
-  ,_panY         :: CInt
+  {_quit         :: Bool
+  ,_camera       :: Camera t
   }
 
 initialGame :: Game TileType
-initialGame = Game playerTile health quit width height tiles panX panY
+initialGame = Game quit camera
   where
-    width  = 640 -- screen/ camera width
-    height = 480 -- screen/ camera height
-    health = 50
-    quit   = False
-    playerTile = setRadius tileSize $
-                 moveR tileSize $                -- one tile right from left
-                 moveD (height - (2*tileSize)) $ -- two tiles up from bottom
-                 setColor red $ defaultTile
+    camera :: Camera TileType
+    camera = panBottomEdge $ fromJust $ mkCamera (V2 width height)
+                                                 (V4 0 (tilesWidth tileColumns) (tilesHeight tileColumns) 0)
+                                                 tiles
+                                                 subject
 
+    -- width and height of the screen/ camera
+    width  = 640
+    height = 480
+
+    -- whether to quit
+    quit   = False
+
+    -- 'the player'
+    subject = Subject $ moveR tileSize $ moveD (height - (2* tileSize)) $ tile red (P $ V2 0 0) tileSize
+
+    -- unit radius of all tiles
     tileSize = 32 -- radius of tiles
 
+    -- The specific configuration of tiles
     tiles = fromJust $ mkTiles tileColumns tileset tileSize
+
+    -- Columns of rows of tiletypes
     tileColumns = TileColumn $ (replicate 23 line) ++ [TileRow $ replicate 32 Floor]
-    line = TileRow $ WallLeft : (replicate 30 Air) ++ [WallRight]
+      where line = TileRow $ WallLeft : (replicate 30 Air) ++ [WallRight]
+
+    -- Map each tile type to info describing it
     tileset = M.fromList
       [(Floor,TileInfo green)
       ,(Ceiling,TileInfo blue)
@@ -53,13 +59,6 @@ initialGame = Game playerTile health quit width height tiles panX panY
       ,(Air,TileInfo white)
       ]
 
-    panX = 0
-
-    -- Initially pan down to the bottom of the tileSet, and then up a tile
-    panY = (-1 * ((tileSetHeight * tileSize) - height))
-
-    tileSetHeight = toEnum . length . _tileColumn $ tileColumns
-
 data Command
   = MoveLeft
   | MoveRight
@@ -67,52 +66,6 @@ data Command
   | MoveDown
   | Shoot
   | Quit
-
--- Todo: Some form of collision detection instead of always panning
-canPanRight :: Game t -> Bool
-canPanRight game = True
-
-canPanLeft :: Game t -> Bool
-canPanLeft game = True
-
-canPanUp :: Game t -> Bool
-canPanUp game = True
-
-canPanDown :: Game t -> Bool
-canPanDown game = True
-
-moveRight :: Game t -> Game t
-moveRight game =
-  -- If the camera can pan right without going 'too far'
-  -- pan the camera. otherwise, move the player within the camera
-  if canPanRight game
-    then game{_panX = (_panX game) - 1}
-    else game{_playerTile = moveR 1 $ _playerTile game}
-
-moveLeft :: Game t -> Game t
-moveLeft game =
-  -- If the camera can pan left without going 'too far'
-  -- pan the camera. otherwise, move the player within the camera
-  if canPanLeft game
-    then game{_panX = (_panX game) + 1}
-    else game{_playerTile = moveL 1 $ _playerTile game}
-
-moveDown :: Game t -> Game t
-moveDown game =
-  -- If the camera can pan down without going 'too far'
-  -- pan the camera. otherwise, move the player within the camera
-  if canPanDown game
-    then game{_panY = (_panY game) - 1}
-    else game{_playerTile = moveD 1 $ _playerTile game}
-
-moveUp :: Game t -> Game t
-moveUp game =
-  -- If the camera can pan up without going 'too far'
-  -- pan the camera. otherwise, move the player within the camera
-  if canPanUp game
-    then game{_panY = (_panY game) + 1}
-    else game{_playerTile = moveU 1 $ _playerTile game}
-
 
 data TileType
   = Floor
@@ -143,7 +96,7 @@ initializeWindow width height = do
 main :: IO ()
 main = do
   let game = initialGame
-  (window,renderer) <- initializeWindow (_screenWidth game) (_screenHeight game)
+  (window,renderer) <- initializeWindow (width . _camera $ game) (height . _camera $ game)
   gameLoop (window,renderer) game
 
 toCommand :: Event -> Maybe Command
@@ -169,16 +122,16 @@ runCommands = foldr runCommand
 runCommand :: Command -> Game t -> Game t
 runCommand c g = case c of
   MoveLeft
-    -> moveLeft g
+    -> g{_camera = moveSubjectLeft $ _camera g}
 
   MoveRight
-    -> moveRight g
+    -> g{_camera = moveSubjectRight $ _camera g}
 
   MoveUp
-    -> moveUp g
+    -> g
 
   MoveDown
-    -> moveDown g
+    -> g
 
   Shoot
     -> g
@@ -189,25 +142,13 @@ runCommand c g = case c of
 -- Render a step of the game state
 stepGame :: Ord t => (Window,Renderer) -> Game t -> IO Bool
 stepGame (window,renderer) game = if _quit game then return True else do
-
   -- Screen to white
   rendererDrawColor renderer $= white
-  clear renderer
 
-  renderTiles (V2 (_panX game) (_panY game))
-              (_screenWidth game,_screenHeight game)
-              renderer
-              (_tiles game)
+  -- Shoot a frame of the game
+  shoot (_camera game) renderer
 
-  -- Draw 'player'
-  drawPlayer renderer game
-
-  present renderer
   return False
-
-drawPlayer :: Renderer -> Game t -> IO ()
-drawPlayer renderer game = drawTile renderer (_playerTile game)
-
 
 
 -- Main game loop
