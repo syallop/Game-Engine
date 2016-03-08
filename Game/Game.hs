@@ -55,8 +55,8 @@ initialGame renderer width height = do
       tileColumns  = Rows $ (replicate 7 line) ++ [Row $ replicate 12 Floor]
       exampleTiles = fromJust $ mkTiles tileColumns tileSet tileSize
 
-  {-let subject = Subject $ moveR tileSize $ moveD tileSize $ moveD (height - (2* tileSize)) subjectTile-}
-  let subject = Subject $ moveR tileSize $ moveD (height - (2 * tileSize)) $ subjectTile
+  {-let subject = Subject $ moveR tileSize $ moveD (height - (2 * tileSize)) $ subjectTile-}
+  let subject = Subject $ subjectTile
 
   let quit = False
 
@@ -130,11 +130,11 @@ toCommand event = case eventPayload event of
     _ -> Nothing
 
 -- Update the Game state by the effect of a string of commands
-runCommands :: Game t -> [Command] -> Game t
+runCommands :: Ord t => Game t -> [Command] -> Game t
 runCommands = foldr runCommand
 
 -- Update the Game state by the effect of a single command
-runCommand :: Command -> Game t -> Game t
+runCommand :: Ord t => Command -> Game t -> Game t
 runCommand c g = case c of
   MoveLeft
     -> g{_camera = moveSubjectLeft $ _camera g}

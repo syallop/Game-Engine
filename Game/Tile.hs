@@ -15,6 +15,7 @@ module Game.Tile
   ,posY
   ,radius
 
+  ,move
   ,moveR
   ,moveL
   ,moveD
@@ -22,6 +23,7 @@ module Game.Tile
 
   ,setColor
   ,setRadius
+  ,mapPos
 
   ,renderTile
 
@@ -61,6 +63,11 @@ data Tile
     ,_tileTexture   :: Texture
     }
 
+instance Show Tile where
+  show t = case t of
+    ColorTile r c   -> "ColorTile " ++ show r ++ " " ++ show c
+    TextureTile r t -> "TextureTile " ++ show r
+
 -- x coordinate of left of tile
 posX :: Tile -> CInt
 posX   t = let Rectangle (P (V2 x _)) _        = _tileRectangle t in x
@@ -72,6 +79,10 @@ posY   t = let Rectangle (P (V2 _ y)) _        = _tileRectangle t in y
 -- radius of tile
 radius :: Tile -> CInt
 radius t = let Rectangle _            (V2 r _) = _tileRectangle t in r
+
+-- Move a tile right and down by the given offset
+move :: V2 CInt -> Tile -> Tile
+move (V2 dx dy) = moveD dy . moveR dx
 
 -- move a tile right
 moveR :: CInt -> Tile -> Tile
@@ -112,6 +123,11 @@ setRadius r t = t{_tileRectangle
                       = let Rectangle p _ = _tileRectangle t
                            in Rectangle p (V2 r r)
                  }
+
+mapPos :: (V2 CInt -> V2 CInt) -> Tile -> Tile
+mapPos f t = t{_tileRectangle = let Rectangle (P p) r = _tileRectangle t
+                                   in Rectangle (P $ f p) r
+              }
 
 -- the default tile is at (0,0) has a radius of 1 and is white
 defaultTile :: Tile

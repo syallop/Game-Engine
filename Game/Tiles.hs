@@ -16,6 +16,8 @@ module Game.Tiles
   ,Rows(..),Row(..)
   ,tilesHeight
   ,tilesWidth
+
+  ,collides
   )
   where
 
@@ -28,6 +30,8 @@ import GHC.Word
 import Control.Monad
 import qualified Data.Map as M
 import Game.Tile
+
+import Debug.Trace
 
 -- Features of a tile type
 data TileInfo
@@ -56,6 +60,7 @@ data Tiles t = Tiles
 
 type TilesIndex  = V2 CInt
 type CoversTiles = V4 CInt
+type Offset      = V2 CInt
 
 -- The height is the number of rows
 tilesHeight :: Rows t -> CInt
@@ -77,9 +82,9 @@ mkTiles rows tileset size
                 ,_tileUnitSize = size
                 }
 
--- Render 'Tiles' ordered left->right, top-> bottom, offset by a given quantity and with knowledge
+-- Render 'Tiles' ordered left->right, top-> bottom, subtract an offset, and with knowledge
 -- screen width being drawn into, such that tiles which fall outside the screen may be skipped
-renderTiles :: Ord t => V2 CInt -> (CInt,CInt) -> Renderer -> Tiles t -> IO ()
+renderTiles :: Ord t => Offset -> (CInt,CInt) -> Renderer -> Tiles t -> IO ()
 renderTiles offset (screenWidth,screenHeight) renderer tiles = do
     let tileUnitSize = _tileUnitSize tiles
     -- TODO:
@@ -96,7 +101,7 @@ renderTiles offset (screenWidth,screenHeight) renderer tiles = do
                                        -> error "tile type has no info in tileset"
 
                                    Just inf
-                                       -> do let V2 x' y' = offset + V2 x y
+                                       -> do let V2 x' y' = (V2 x y) - offset
                                                  pos      = P $ V2 x' y'
                                              -- TODO: Dont render things outside of the camera
                                              renderTile renderer $ tileInfoInstance inf pos tileUnitSize
@@ -118,14 +123,13 @@ tileInfoInstance inf pos radius = case inf of
   InfoTextured t _
     -> textureTile t pos radius
 
-
 -- Does a tile collide with any solid tiles it would cover?
 collides :: Ord t => Tile -> Tiles t -> Bool
 collides t ts = case covers t ts of
 
   -- No tiles covered => out of range => no collision
   Nothing
-    -> False
+    -> traceShow "No tiles covered" $ False
 
   -- A range of tiles are covered. If any of them are solid => collision
   Just range

@@ -26,12 +26,14 @@ module Game.Camera
   ) where
 
 import Foreign.C.Types
-import Linear
+import Linear hiding (trace)
 import Linear.Affine
 import SDL
 
 import Game.Tile
 import Game.Tiles
+
+import Debug.Trace
 
 data Camera t = Camera
   {_panX :: CInt
@@ -53,6 +55,14 @@ data Camera t = Camera
   ,_subject :: Subject
   }
 
+-- Convert a position relative to the world top-left to a position relative to the cameras
+-- top-left
+worldToCamera :: V2 CInt -> Camera t -> V2 CInt
+worldToCamera (V2 x y) c = V2 (x - (_panX c)) (y - (_panY c))
+
+cameraToWorld :: V2 CInt -> Camera t -> V2 CInt
+cameraToWorld (V2 x y) c = V2 (x + (_panX c)) (y + (_panY c))
+
 data Subject = Subject
   {_subjectTile :: Tile
   }
@@ -66,6 +76,13 @@ subjectCameraPosY = posY . _subjectTile
 
 subjectRadius :: Subject -> CInt
 subjectRadius = radius . _subjectTile
+
+subjectTileInWorld :: Camera t -> Tile
+subjectTileInWorld = _subjectTile . _subject
+
+subjectTileInCamera :: Camera t -> Tile
+subjectTileInCamera c = mapPos (`worldToCamera` c) . subjectTileInWorld $ c
+
 
 -- The width of the frame the camera is looking at
 frameWidth :: Camera t -> CInt
@@ -86,19 +103,19 @@ panY d c = let y' = (_panY c) + d in c{_panY = y'}
 
 -- pan a single unit right
 panRight :: Camera t -> Camera t
-panRight = panX (-1)
+panRight = panX 1
 
 -- pan a single unit left
 panLeft :: Camera t -> Camera t
-panLeft  = panX 1
+panLeft  = panX (-1)
 
 -- pan a single unit up
 panUp :: Camera t -> Camera t
-panUp    = panY 1
+panUp    = panY (-1)
 
 -- pan a single unit down
 panDown :: Camera t -> Camera t
-panDown  = panY (-1)
+panDown  = panY 1
 
 
 -- pan to the bottom edge of the background tiles
@@ -164,7 +181,8 @@ shoot c renderer = do
   renderTiles (V2 (_panX c) (_panY c)) (_width c,_height c) renderer (_background c)
 
   -- render the subject within the frame
-  renderTile renderer (_subjectTile . _subject $ c)
+  {-renderTile renderer (_subjectTile . _subject $ c)-}
+  renderTile renderer (mapPos (`worldToCamera` c) . _subjectTile . _subject $ c)
 
   present renderer
 
@@ -174,42 +192,58 @@ shoot c renderer = do
 -- - TODO: They do not collide with something solid
 moveSubjectRight :: Camera t -> Camera t
 moveSubjectRight c =
-  let sx             = subjectCameraPosX . _subject $ c
-      rx             = subjectRadius . _subject $ c
-      xPanning       = _panX c
-      absoluteRightX = (sx + rx) - xPanning
-     in if (absoluteRightX + 1) < (_boundaryRight c)
-          then panRight c
-          else c
+  let wt      = subjectTileInWorld c
+      r       = radius wt
+      wLeftX  = posX wt
+      wRightX = wLeftX + r
+     in if wRightX + 1 < (_boundaryRight c)
+
+          -- Move right and then pan right
+          then panRight $ c{_subject = Subject (moveR 1 wt)}
+
+          -- Move right but dont pan right
+          else c{_subject = Subject (moveR 1 wt)}
 
 -- move the subject left if:
 -- - They do not leave the boundary
 -- - TODO: They do not collide with something solid
-moveSubjectLeft :: Camera t -> Camera t
+moveSubjectLeft :: Ord t => Camera t -> Camera t
 moveSubjectLeft c =
-  let sx            = subjectCameraPosX . _subject $ c
-      xPanning      = _panX c
-      absoluteLeftX = sx - xPanning
-     in if (_boundaryLeft c) <= (absoluteLeftX - 1)
-          then panLeft c
-          else c
+  let wt     = subjectTileInWorld c
+      r      = radius wt
+      wLeftX = posX wt
+     in if (_boundaryLeft c ) <= (wLeftX - 1)
+
+          -- Move left and then pan left
+          then panLeft $ c{_subject = Subject (moveL 1 wt)}
+
+          -- Move left but dont pan left
+          else c{_subject = Subject (moveL 1 wt)}
 
 moveSubjectUp :: Camera t -> Camera t
 moveSubjectUp c =
-  let sy           = subjectCameraPosY . _subject $ c
-      yPanning     = _panY c
-      absoluteTopY = sy - yPanning
-     in if (_boundaryUp c) < (absoluteTopY - 1)
-          then panUp c
-          else c
+  let wt    = subjectTileInWorld c
+      r     = radius wt
+      wTopY = posY wt
+     in if (_boundaryUp c) <= (wTopY - 1)
+
+          -- Move up and pan up
+          then panUp $ c{_subject = Subject (moveU 1 wt)}
+
+          -- Move up but dont pan up
+          else c{_subject = Subject (moveU 1 wt)}
 
 moveSubjectDown :: Camera t -> Camera t
 moveSubjectDown c =
-  let sy              = subjectCameraPosY . _subject $ c
-      ry              = subjectRadius . _subject $ c
-      yPanning        = _panY c
-      absoluteBottomY = (sy + ry) - yPanning
-     in if (absoluteBottomY + 1) < (_boundaryDown c)
-          then panDown c
-          else c
+  let wt       = subjectTileInWorld c
+      r        = radius wt
+      wTopY    = posY wt
+      wBottomY = wTopY + r
+     in if (wBottomY + 1) < (_boundaryDown c)
+
+          -- Move down and pan down
+          then panDown $ c{_subject = Subject (moveD 1 wt)}
+
+          -- Move down but dont pan down
+          else c{_subject = Subject (moveD 1 wt)}
 
