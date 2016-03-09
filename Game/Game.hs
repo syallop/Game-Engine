@@ -47,23 +47,24 @@ initialGame renderer width height = do
                            ,(WallRight,InfoTextured blackTexture True)
                            ,(Air      ,InfoTextured whiteTexture False)
                            ]
-      tileSize = 64
+      tileSize = 64 
 
       subjectTile = textureTile playerTexture (P $ V2 0 0) tileSize
 
-      line = Row $ WallLeft : (replicate 10 Air) ++ [WallRight]
-      tileColumns  = Rows $ (replicate 7 line) ++ [Row $ replicate 12 Floor]
-      exampleTiles = fromJust $ mkTiles tileColumns tileSet tileSize
+      line       = Row $ WallLeft : (replicate 10 Air) ++ [WallRight]
+      aboveBottomLine = Row $ WallLeft : Air : Air : Air : Air : Air      : Air : Air : Floor : Air : Air : WallRight : [] 
+      bottomLine      = Row $ WallLeft : Air : Air : Air : Air : WallLeft : Air : Air : Floor : Air : Air : WallRight : [] 
+      tileRows = Rows $ (replicate 5 line) ++ [aboveBottomLine,bottomLine] ++ [Row $ replicate 12 Floor]
+      exampleTiles = fromJust $ mkTiles tileRows tileSet tileSize
 
-  {-let subject = Subject $ moveR tileSize $ moveD (height - (2 * tileSize)) $ subjectTile-}
-  let subject = Subject $ subjectTile
+  let subject = Subject $ moveR tileSize $ moveD (tileSize * 6) $ subjectTile
 
   let quit = False
 
   let boundaryLeft   = 0
-      boundaryRight  = (tilesWidth tileColumns) * tileSize
+      boundaryRight  = (tilesWidth tileRows) * tileSize
       boundaryTop    = 0
-      boundaryBottom = (tilesHeight tileColumns) * tileSize
+      boundaryBottom = (tilesHeight tileRows) * tileSize
 
   let initialCamera  = panBottomEdge $ fromJust $ mkCamera (V2 width height)
                                                            (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
@@ -86,7 +87,7 @@ data TileType
   | WallLeft
   | WallRight
   | Air
-  deriving (Eq,Ord)
+  deriving (Eq,Ord,Show)
 
 -- Set up the window, etc and the initial game
 initializeWindow :: CInt -> CInt -> IO (Window,Renderer)
@@ -130,11 +131,11 @@ toCommand event = case eventPayload event of
     _ -> Nothing
 
 -- Update the Game state by the effect of a string of commands
-runCommands :: Ord t => Game t -> [Command] -> Game t
+runCommands :: Show t => Ord t => Game t -> [Command] -> Game t
 runCommands = foldr runCommand
 
 -- Update the Game state by the effect of a single command
-runCommand :: Ord t => Command -> Game t -> Game t
+runCommand :: Show t => Ord t => Command -> Game t -> Game t
 runCommand c g = case c of
   MoveLeft
     -> g{_camera = moveSubjectLeft $ _camera g}
@@ -167,7 +168,7 @@ stepGame (window,renderer) game = if _quit game then return True else do
 
 
 -- Main game loop
-gameLoop :: Ord t => (Window,Renderer) -> Game t -> IO ()
+gameLoop :: Show t => Ord t => (Window,Renderer) -> Game t -> IO ()
 gameLoop (window,renderer) game = do
   -- Parse events into Commands
   events <- pollEvents

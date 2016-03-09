@@ -124,7 +124,7 @@ panBottomEdge c =
   let tsHeight = tilesHeight (_tileRows . _background $ c)
       tileSize = _tileUnitSize . _background $ c
       bottomDistance = (tsHeight * tileSize) - (frameHeight c)
-     in panY (-1 * bottomDistance) c
+     in panY (bottomDistance) c
 
 -- pan to the left edge of the background tiles
 panLeftEdge :: Camera t -> Camera t
@@ -190,60 +190,76 @@ shoot c renderer = do
 -- move the subject right if:
 -- - They do not leave the boundary
 -- - TODO: They do not collide with something solid
-moveSubjectRight :: Camera t -> Camera t
+moveSubjectRight :: Show t => Ord t => Camera t -> Camera t
 moveSubjectRight c =
   let wt      = subjectTileInWorld c
-      r       = radius wt
-      wLeftX  = posX wt
+      wt'     = moveR 1 wt
+      r       = radius wt'
+      wLeftX  = posX wt'
       wRightX = wLeftX + r
-     in if wRightX + 1 < (_boundaryRight c)
+     in if collides wt' (_background c) 
+        then c
+        else -- Camera boundary collision
+              if wRightX + 1 < (_boundaryRight c)
 
-          -- Move right and then pan right
-          then panRight $ c{_subject = Subject (moveR 1 wt)}
+               -- Move right and then pan right
+              then panRight $ c{_subject = Subject (moveR 1 wt)}
 
-          -- Move right but dont pan right
-          else c{_subject = Subject (moveR 1 wt)}
+              -- Move right but dont pan right
+              else c{_subject = Subject (moveR 1 wt)}
 
 -- move the subject left if:
 -- - They do not leave the boundary
 -- - TODO: They do not collide with something solid
-moveSubjectLeft :: Ord t => Camera t -> Camera t
+moveSubjectLeft :: Show t => Ord t => Camera t -> Camera t
 moveSubjectLeft c =
   let wt     = subjectTileInWorld c
-      r      = radius wt
-      wLeftX = posX wt
-     in if (_boundaryLeft c ) <= (wLeftX - 1)
+      wt'    = moveL 1 wt
+      r      = radius wt'
+      wLeftX = posX wt'
+     in if collides wt' (_background c)
+          then c
+          else -- camera boundary collision check
+              if (_boundaryLeft c ) <= (wLeftX - 1)
 
-          -- Move left and then pan left
-          then panLeft $ c{_subject = Subject (moveL 1 wt)}
+                -- Move left and then pan left
+                then panLeft $ c{_subject = Subject wt'}
 
-          -- Move left but dont pan left
-          else c{_subject = Subject (moveL 1 wt)}
+                -- Move left but dont pan left
+                else c{_subject = Subject wt'}
 
-moveSubjectUp :: Camera t -> Camera t
+moveSubjectUp :: Show t => Ord t => Camera t -> Camera t
 moveSubjectUp c =
   let wt    = subjectTileInWorld c
-      r     = radius wt
-      wTopY = posY wt
-     in if (_boundaryUp c) <= (wTopY - 1)
+      wt'   = moveU 1 wt
+      r     = radius wt'
+      wTopY = posY wt'
+     in if collides wt' (_background c)
+          then c
+          else -- camera boundary collision check
+              if (_boundaryUp c) <= (wTopY - 1)
 
-          -- Move up and pan up
-          then panUp $ c{_subject = Subject (moveU 1 wt)}
+              -- Move up and pan up
+              then panUp $ c{_subject = Subject wt'}
 
-          -- Move up but dont pan up
-          else c{_subject = Subject (moveU 1 wt)}
+              -- Move up but dont pan up
+              else c{_subject = Subject wt'}
 
-moveSubjectDown :: Camera t -> Camera t
+moveSubjectDown :: Show t => Ord t => Camera t -> Camera t
 moveSubjectDown c =
   let wt       = subjectTileInWorld c
-      r        = radius wt
-      wTopY    = posY wt
+      wt'      = moveD 1 wt
+      r        = radius wt'
+      wTopY    = posY wt'
       wBottomY = wTopY + r
-     in if (wBottomY + 1) < (_boundaryDown c)
+     in if collides wt' (_background c)
+          then c
+          else -- camera boundary collision check
+              if (wBottomY + 1) < (_boundaryDown c)
 
-          -- Move down and pan down
-          then panDown $ c{_subject = Subject (moveD 1 wt)}
+                -- Move down and pan down
+                then panDown $ c{_subject = Subject wt'}
 
-          -- Move down but dont pan down
-          else c{_subject = Subject (moveD 1 wt)}
+                -- Move down but dont pan down
+                else c{_subject = Subject wt'}
 

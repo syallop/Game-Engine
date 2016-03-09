@@ -44,12 +44,21 @@ data TileInfo
     ,_tileSolid       :: Bool
     }
 
+instance Show TileInfo where
+  show t = case t of
+    InfoColored c s
+      -> "InfoColored " ++ show c ++ show s
+
+    InfoTextured t s
+      -> "InfoTextured " ++ show s
+
+
 -- Map elements of a tile type 't' to their info
 type TileSet t = M.Map t TileInfo
 
 -- Many rows of some tile type 't'
-newtype Rows t = Rows {_rows :: [Row t]}
-newtype Row t = Row {_row :: [t]}
+newtype Rows t = Rows {_rows :: [Row t]} deriving Show
+newtype Row t = Row {_row :: [t]} deriving Show
 
 -- A specific collection of tiles 't' from some TileSet
 data Tiles t = Tiles
@@ -124,7 +133,7 @@ tileInfoInstance inf pos radius = case inf of
     -> textureTile t pos radius
 
 -- Does a tile collide with any solid tiles it would cover?
-collides :: Ord t => Tile -> Tiles t -> Bool
+collides :: Show t => Ord t => Tile -> Tiles t -> Bool
 collides t ts = case covers t ts of
 
   -- No tiles covered => out of range => no collision
@@ -174,27 +183,29 @@ indexInRange (V2 xIx yIx) ts = (0 <= xIx) && (xIx < (tilesWidth . _tileRows $ ts
                             && (0 <= yIx) && (yIx < (tilesHeight . _tileRows $ ts))
 
 -- Is a tile solid at the given index? False if out of range.
-isSolidAt :: Ord t => TilesIndex -> Tiles t -> Bool
-isSolidAt ix ts = maybe False isSolid $ indexTileInfo ix ts
+isSolidAt :: Show t => Ord t => TilesIndex -> Tiles t -> Bool
+isSolidAt ix ts =
+  let minfo = indexTileInfo ix ts
+     in maybe False isSolid minfo 
 
 -- Is a tile solid?
 isSolid :: TileInfo -> Bool
 isSolid = _tileSolid
 
 -- Index the tileinfo at row,column
-indexTileInfo :: Ord t => TilesIndex -> Tiles t -> Maybe TileInfo
-indexTileInfo (V2 rowIx colIx) ts = do
-  tileRow <- indexTileColumn (_tileRows ts) colIx
-  t       <- indexTileRow tileRow rowIx
+indexTileInfo :: Show t => Ord t => TilesIndex -> Tiles t -> Maybe TileInfo
+indexTileInfo (V2 xIx yIx) ts = do
+  tileRow <- indexTileRows (_tileRows ts) yIx 
+  t       <- indexTileRow tileRow xIx 
   M.lookup t (_tileSet ts)
 
--- index a row from a 'tilecolumn'
-indexTileColumn :: Rows t -> CInt -> Maybe (Row t)
-indexTileColumn (Rows [])     ix = Nothing
-indexTileColumn (Rows (r:rs)) ix
+-- index a row from a rows 
+indexTileRows :: Rows t -> CInt -> Maybe (Row t)
+indexTileRows (Rows [])     ix = Nothing
+indexTileRows (Rows (r:rs)) ix
   | ix < 0    = Nothing
   | ix == 0   = Just r
-  | otherwise = indexTileColumn (Rows rs) ix
+  | otherwise = indexTileRows (Rows rs) (ix - 1)
 
 -- index a t from a row
 indexTileRow :: Row t -> CInt -> Maybe t
