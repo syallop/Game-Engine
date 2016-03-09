@@ -14,11 +14,13 @@ import Data.Maybe
 
 import Game.Tile
 import Game.Tiles
+import Game.Stage
 import Game.Camera
 
 data Game t = Game
-  {_quit         :: Bool
-  ,_camera       :: Camera t
+  {_quit   :: Bool
+  ,_stage  :: Stage t
+  ,_camera :: Camera
   }
 
 initialGame :: Renderer -> CInt -> CInt -> IO (Game TileType)
@@ -57,7 +59,6 @@ initialGame renderer width height = do
       tileRows = Rows $ (replicate 5 line) ++ [aboveBottomLine,bottomLine] ++ [Row $ replicate 12 Floor]
       exampleTiles = fromJust $ mkTiles tileRows tileSet tileSize
 
-  let subject = Subject $ moveR tileSize $ moveD (tileSize * 6) $ subjectTile
 
   let quit = False
 
@@ -66,12 +67,15 @@ initialGame renderer width height = do
       boundaryTop    = 0
       boundaryBottom = (tilesHeight tileRows) * tileSize
 
-  let initialCamera  = panBottomEdge $ fromJust $ mkCamera (V2 width height)
-                                                           (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
-                                                           exampleTiles
-                                                           subject
+  let background = Background exampleTiles
+      subject    = Subject $ moveR tileSize $ moveD (tileSize * 6) $ subjectTile
+      stage      = fromJust $ setStage background subject 
 
-  return $ Game quit initialCamera
+  --todo pan bottom edge
+  let initialCamera  = fromJust $ mkCamera (V2 width height)
+                                           (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
+
+  return $ Game quit stage initialCamera 
 
 data Command
   = MoveLeft
@@ -138,16 +142,16 @@ runCommands = foldr runCommand
 runCommand :: Show t => Ord t => Command -> Game t -> Game t
 runCommand c g = case c of
   MoveLeft
-    -> g{_camera = moveSubjectLeft $ _camera g}
+    -> g{_stage = moveSubjectLeft $ _stage g} 
 
   MoveRight
-    -> g{_camera = moveSubjectRight $ _camera g}
+    -> g{_stage = moveSubjectRight $ _stage g}
 
   MoveUp
-    -> g{_camera = moveSubjectUp $ _camera g}
+    -> g{_stage = moveSubjectUp $ _stage g}
 
   MoveDown
-    -> g{_camera = moveSubjectDown $ _camera g}
+    -> g{_stage = moveSubjectDown $ _stage g}
 
   Shoot
     -> g
@@ -162,7 +166,7 @@ stepGame (window,renderer) game = if _quit game then return True else do
   rendererDrawColor renderer $= white
 
   -- Shoot a frame of the game
-  shoot (_camera game) renderer
+  shoot (_camera game) renderer (_stage game)
 
   return False
 
