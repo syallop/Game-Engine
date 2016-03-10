@@ -1,7 +1,6 @@
 module Game.Stage
   (Stage()
   ,Subject(..)
-  ,Background(..)
   ,setStage
   ,moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp
   ,moveSubjectRightBy,moveSubjectLeftBy,moveSubjectDownBy,moveSubjectUpBy
@@ -17,14 +16,10 @@ import Foreign.C.Types
 
 import Game.Tile
 import Game.Tiles
+import Game.Background
 
 data Subject = Subject
   {_subjectTile :: Tile
-  }
-  deriving Show
-
-data Background t = Background
-  {_backgroundTiles :: Tiles t 
   }
   deriving Show
 
@@ -66,14 +61,14 @@ mapSubjectTile f stg =
 -- the background
 setSubjectTile :: (Show t,Ord t) => Tile -> Stage t -> Stage t
 setSubjectTile tile stg =
-  let background = _backgroundTiles . _background $ stg
+  let background = backgroundTiles . _background $ stg
       subject    = _subject stg
      in if collides tile background
           then stg
           else stg{_subject = subject{_subjectTile = tile}}
 
 stageBackgroundTiles :: Stage t -> Tiles t
-stageBackgroundTiles = _backgroundTiles . _background
+stageBackgroundTiles = backgroundTiles . _background
 
 stageSubjectTile :: Stage t -> Tile
 stageSubjectTile = _subjectTile . _subject

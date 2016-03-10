@@ -15,6 +15,7 @@ import Data.Maybe
 import Game.Tile
 import Game.Tiles
 import Game.Stage
+import Game.Background
 import Game.Camera
 
 import Debug.Trace
@@ -70,7 +71,7 @@ initialGame renderer width height = do
       boundaryTop    = 0
       boundaryBottom = (tilesHeight tileRows) * tileSize
 
-  let background = Background exampleTiles
+  let background = fromJust $ mkBackground exampleTiles
       subject    = Subject $ moveR tileSize $ moveD (tileSize * 6) $ subjectTile
       stage      = fromJust $ setStage background subject 
 
@@ -173,7 +174,6 @@ runCommand c g = case c of
 
   MoveDown
     -> g{_stage = moveSubjectDown $ _stage g}
-
 
   PanLeft
     -> g{_camera = panLeft $ _camera g}
