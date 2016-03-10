@@ -9,6 +9,7 @@ module Game.Camera
   ,panRight,panLeft,panUp,panDown
   {-,panLeftEdge,panRightEdge,panTopEdge,panBottomEdge-}
   {-,panLeftBoundary,panRightBoundary,panTopBoundary,panBottomBoundary-}
+  ,panTo
   ,mkCamera
   ,frameWidth,frameHeight
 
@@ -24,6 +25,7 @@ import Linear.Affine
 import SDL
 
 import Game.Tile
+import Game.Thing
 import Game.Tiles
 import Game.Stage
 
@@ -42,7 +44,7 @@ data Camera = Camera
   ,_boundaryUp    :: CInt
   ,_boundaryDown  :: CInt
 
-  ,_trackSubject :: Bool
+  ,_trackSubject   :: Bool
   }
   deriving Show
 
@@ -159,7 +161,7 @@ closestPanY y c =
 -- - frame dimensions
 -- - absolute boundaries
 mkCamera :: V2 CInt -> V4 CInt -> Maybe Camera
-mkCamera (V2 width height) (V4 bL bR bU bD) = Just $ Camera 0 0 width height bL bR bU bD True 
+mkCamera (V2 width height) (V4 bL bR bU bD) = Just $ Camera 0 0 width height bL bR bU bD False
 
 -- shoot a frame of the scene, the background, the subject, any actors and props adjusted
 -- for the cameras pan
@@ -182,6 +184,9 @@ shoot c renderer stage = do
   -- render the subject within the frame
   renderTile renderer
              (mapPos (`worldToCamera` c') subjectTile)
+
+  -- render the 'Thing's
+  mapM_ (renderTile renderer . mapPos (`worldToCamera` c') . thingTile) (things stage)
 
   present renderer
 

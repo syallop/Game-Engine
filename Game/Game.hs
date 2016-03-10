@@ -14,6 +14,7 @@ import Data.Maybe
 
 import Game.Tile
 import Game.Tiles
+import Game.Thing
 import Game.Stage
 import Game.Background
 import Game.Camera
@@ -36,6 +37,7 @@ initialGame renderer width height = do
    ,blackTexture
    ,whiteTexture
    ,playerTexture
+   ,yellowCircleTexture
    ] <- mapM (loadTexture renderer)
                    ["red.bmp"
                    ,"green.bmp"
@@ -43,6 +45,7 @@ initialGame renderer width height = do
                    ,"black.bmp"
                    ,"white.bmp"
                    ,"playerT.bmp"
+                   ,"yellowCircle.bmp"
                    ]
 
   -- Map each tile to info describing it
@@ -53,7 +56,7 @@ initialGame renderer width height = do
                            ,(WallRight,InfoTextured blackTexture True)
                            ,(Air      ,InfoTextured whiteTexture False)
                            ]
-      tileSize = 64 
+      tileSize = 64
 
       subjectTile = textureTile playerTexture (P $ V2 0 0) tileSize
 
@@ -71,13 +74,17 @@ initialGame renderer width height = do
       boundaryTop    = 0
       boundaryBottom = (tilesHeight tileRows) * tileSize
 
+  let thing0 = Thing $ textureTile yellowCircleTexture (P $ V2 192 256) tileSize
+      thing1 = Thing $ textureTile yellowCircleTexture (P $ V2 128 128) tileSize
+
   let background = fromJust $ mkBackground exampleTiles
       subject    = Subject $ moveR tileSize $ moveD (tileSize * 6) $ subjectTile
-      stage      = fromJust $ setStage background subject 
+      stage      = fromJust $ setStage background subject [thing0,thing1]
 
   --todo pan bottom edge
-  let initialCamera  = fromJust $ mkCamera (V2 width height)
-                                           (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
+  let initialCamera  = panTo (V2 0 ((backgroundHeight background) - height)) $ fromJust
+                                   $ mkCamera (V2 width height)
+                                              (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
   return $ Game quit stage initialCamera 
 

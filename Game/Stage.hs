@@ -9,6 +9,8 @@ module Game.Stage
 
   ,stageBackgroundTiles
   ,stageSubjectTile
+
+  ,things
   )
   where
 
@@ -17,6 +19,7 @@ import Foreign.C.Types
 import Game.Tile
 import Game.Tiles
 import Game.Background
+import Game.Thing
 
 data Subject = Subject
   {_subjectTile :: Tile
@@ -26,20 +29,21 @@ data Subject = Subject
 data Stage t = Stage
   {_background :: Background t
   ,_subject    :: Subject
+  ,_things     :: [Thing]
   }
   deriving Show
 
--- Set a stage with a background and a subject.
+-- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
-setStage :: Background t -> Subject -> Maybe (Stage t)
-setStage b s = Just $ Stage b s
+setStage :: Background t -> Subject -> [Thing] -> Maybe (Stage t)
+setStage b s things = Just $ Stage b s things
 
 -- Move a subject in a direction if they do not collide with the background
 moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp :: (Show t,Ord t) => Stage t -> Stage t 
 moveSubjectRight = moveSubjectRightBy 1
 moveSubjectLeft  = moveSubjectLeftBy 1
-moveSubjectDown  = moveSubjectDownBy 1 
-moveSubjectUp    = moveSubjectUpBy 1 
+moveSubjectDown  = moveSubjectDownBy 1
+moveSubjectUp    = moveSubjectUpBy 1
 
 -- Move a subject in a direction by a positive amount if they do not collide
 -- with the background
@@ -72,4 +76,7 @@ stageBackgroundTiles = backgroundTiles . _background
 
 stageSubjectTile :: Stage t -> Tile
 stageSubjectTile = _subjectTile . _subject
+
+things :: Stage t -> [Thing]
+things = _things
 
