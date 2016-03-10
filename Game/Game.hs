@@ -17,11 +17,14 @@ import Game.Tiles
 import Game.Stage
 import Game.Camera
 
+import Debug.Trace
+
 data Game t = Game
   {_quit   :: Bool
   ,_stage  :: Stage t
   ,_camera :: Camera
   }
+  deriving Show
 
 initialGame :: Renderer -> CInt -> CInt -> IO (Game TileType)
 initialGame renderer width height = do
@@ -82,8 +85,17 @@ data Command
   | MoveRight
   | MoveUp
   | MoveDown
+
+  | PanLeft
+  | PanRight
+  | PanUp
+  | PanDown
+
+  | TrackSubject
+
   | Shoot
   | Quit
+  deriving (Show)
 
 data TileType
   = Floor
@@ -125,10 +137,19 @@ toCommand event = case eventPayload event of
     KeyboardEvent keyboardEvent
         |  keyboardEventKeyMotion keyboardEvent == Pressed
          -> case keysymKeycode (keyboardEventKeysym keyboardEvent) of
-               KeycodeLeft  -> Just MoveLeft
-               KeycodeRight -> Just MoveRight
-               KeycodeUp    -> Just MoveUp
-               KeycodeDown  -> Just MoveDown
+
+               KeycodeLeft  -> Just PanLeft
+               KeycodeRight -> Just PanRight
+               KeycodeUp    -> Just PanUp
+               KeycodeDown  -> Just PanDown
+
+               KeycodeW     -> Just MoveUp
+               KeycodeS     -> Just MoveDown
+               KeycodeA     -> Just MoveLeft
+               KeycodeD     -> Just MoveRight
+
+               KeycodeT     -> Just TrackSubject
+
                KeycodeSpace -> Just Shoot
                KeycodeQ     -> Just Quit
                _  -> Nothing
@@ -152,6 +173,26 @@ runCommand c g = case c of
 
   MoveDown
     -> g{_stage = moveSubjectDown $ _stage g}
+
+
+  PanLeft
+    -> g{_camera = panLeft $ _camera g}
+
+  PanRight
+    -> g{_camera = panRight $ _camera g}
+
+  PanDown
+    -> g{_camera = panDown $ _camera g}
+
+  PanUp
+    -> g{_camera = panUp $ _camera g}
+
+
+  TrackSubject
+    -> let cam  = _camera g
+           cam' = cam{_trackSubject = not . _trackSubject $ cam}
+        in g{_camera = cam'}
+
 
   Shoot
     -> g
@@ -192,6 +233,3 @@ quitGame (window,renderer) g = do
   destroyWindow window
   quit
 
-{-loadSurface :: Surface -> FilePath -> IO Surface-}
-{-loadSurface screenSurface file = do-}
-  {-return undefined -}

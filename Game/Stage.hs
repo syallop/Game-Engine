@@ -21,15 +21,18 @@ import Game.Tiles
 data Subject = Subject
   {_subjectTile :: Tile
   }
+  deriving Show
 
 data Background t = Background
   {_backgroundTiles :: Tiles t 
   }
+  deriving Show
 
 data Stage t = Stage
   {_background :: Background t
   ,_subject    :: Subject
   }
+  deriving Show
 
 -- Set a stage with a background and a subject.
 -- TODO: Fail when subject collides with background in starting position.

@@ -14,6 +14,8 @@ module Game.Camera
 
   ,Subject(..)
   ,shoot
+
+  ,_trackSubject
   ) where
 
 import Foreign.C.Types
@@ -39,7 +41,10 @@ data Camera = Camera
   ,_boundaryRight :: CInt
   ,_boundaryUp    :: CInt
   ,_boundaryDown  :: CInt
+
+  ,_trackSubject :: Bool
   }
+  deriving Show
 
 -- Convert a position relative to the world top-left to a position relative to the cameras
 -- top-left
@@ -64,7 +69,7 @@ panRightBy,panLeftBy,panDownBy,panUpBy :: CInt -> Camera -> Camera
 panRightBy d c = let x' = (_panX c) + d in c{_panX = x'}
 panLeftBy  d c = let x' = (_panX c) - d in c{_panX = x'}
 panDownBy  d c = let y' = (_panY c) + d in c{_panY = y'}
-panUpBy    d c = let y' = (_panY c) + d in c{_panY = y'}
+panUpBy    d c = let y' = (_panY c) - d in c{_panY = y'}
 
 -- pan a single unit in a direction 
 -- ignores boundaries
@@ -154,7 +159,7 @@ closestPanY y c =
 -- - frame dimensions
 -- - absolute boundaries
 mkCamera :: V2 CInt -> V4 CInt -> Maybe Camera
-mkCamera (V2 width height) (V4 bL bR bU bD) = Just $ Camera 0 0 width height bL bR bU bD 
+mkCamera (V2 width height) (V4 bL bR bU bD) = Just $ Camera 0 0 width height bL bR bU bD True 
 
 -- shoot a frame of the scene, the background, the subject, any actors and props adjusted
 -- for the cameras pan
@@ -166,7 +171,7 @@ shoot c renderer stage = do
   let subjectTile = stageSubjectTile stage
   let subjectX = posX subjectTile
       subjectY = posY subjectTile
-      c' = panTowards (V2 subjectX subjectY) c
+      c' = if _trackSubject c then panTowards (V2 subjectX subjectY) c else c
 
   -- render the background that falls within the frame
   renderTiles (V2 (_panX c') (_panY c'))

@@ -66,6 +66,7 @@ data Tiles t = Tiles
   ,_tileSet      :: TileSet t
   ,_tileUnitSize :: CInt
   }
+  deriving Show
 
 type TilesIndex  = V2 CInt
 type CoversTiles = V4 CInt
