@@ -17,7 +17,7 @@ import Game.Tiles
 data Background t = Background
   {_backgroundTiles :: Tiles t
   }
-  deriving Show
+  deriving (Eq,Show)
 
 mkBackground :: Tiles t -> Maybe (Background t)
 mkBackground = Just . Background

@@ -62,6 +62,7 @@ data Tile
     {_tileRectangle :: Rectangle CInt
     ,_tileTexture   :: Texture
     }
+  deriving Eq
 
 instance Show Tile where
   show t = case t of

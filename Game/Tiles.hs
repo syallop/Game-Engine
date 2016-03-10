@@ -43,6 +43,7 @@ data TileInfo
     {_tileInfoTexture :: Texture
     ,_tileSolid       :: Bool
     }
+    deriving Eq
 
 instance Show TileInfo where
   show t = case t of
@@ -57,8 +58,8 @@ instance Show TileInfo where
 type TileSet t = M.Map t TileInfo
 
 -- Many rows of some tile type 't'
-newtype Rows t = Rows {_rows :: [Row t]} deriving Show
-newtype Row t = Row {_row :: [t]} deriving Show
+newtype Rows t = Rows {_rows :: [Row t]} deriving (Eq,Show)
+newtype Row t = Row {_row :: [t]} deriving (Eq,Show)
 
 -- A specific collection of tiles 't' from some TileSet
 data Tiles t = Tiles
@@ -66,7 +67,7 @@ data Tiles t = Tiles
   ,_tileSet      :: TileSet t
   ,_tileUnitSize :: CInt
   }
-  deriving Show
+  deriving (Eq,Show)
 
 type TilesIndex  = V2 CInt
 type CoversTiles = V4 CInt

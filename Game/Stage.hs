@@ -11,15 +11,18 @@ module Game.Stage
   ,stageSubjectTile
 
   ,things
+  ,applyVelocitySubject
   )
   where
 
+import Linear
 import Foreign.C.Types
 
 import Game.Tile
 import Game.Tiles
 import Game.Background
 import Game.Thing
+import Game.Velocity
 
 
 data Stage t = Stage
@@ -27,7 +30,7 @@ data Stage t = Stage
   ,_subject    :: Subject
   ,_things     :: [Thing]
   }
-  deriving Show
+  deriving (Eq,Show)
 
 type Subject = Thing
 
@@ -78,4 +81,24 @@ stageSubjectTile = _thingTile . _subject
 
 things :: Stage t -> [Thing]
 things = _things
+
+-- Attempt to apply a subjects velocity to its position, not moving it in a direction if
+-- it would collide.
+-- TODO: Moving by an amount in a direction should still succeed with the maximum allowed amount
+-- rather than completly failing
+applyVelocitySubject :: (Show t,Ord t) => Stage t -> Stage t
+applyVelocitySubject stg =
+  let Velocity (V2 vX vY) = _velocity . _subject $ stg
+
+      -- If moving right fails => Hit something => Null the velocity in that direction
+      stg'  = (\stg' -> if stg' == stg
+                          then stg{_subject = mapVelocity (\(Velocity (V2 _ y)) -> Velocity $ V2 0 y) (_subject stg)}
+                          else stg'
+              ) . moveSubjectRightBy vX $ stg
+      -- Same with moving down
+      stg'' = (\stg'' -> if stg'' == stg'
+                           then stg'{_subject = mapVelocity (\(Velocity (V2 x _)) -> Velocity $ V2 x 0) (_subject stg')}
+                           else stg''
+              ) . moveSubjectDownBy vY $ stg'
+     in stg''
 

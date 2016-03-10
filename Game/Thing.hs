@@ -7,6 +7,8 @@ module Game.Thing
 
   ,collidesThing
   ,collidesThings
+
+  ,mapVelocity
   )
   where
 
@@ -14,14 +16,15 @@ import Foreign.C.Types
 
 import Linear
 import Game.Tile
+import Game.Velocity
 
 -- A _thing_ with a drawable tile
 data Thing = Thing
   {_thingTile :: Tile
   ,_isSolid   :: Bool
-  ,_velocity  :: V2 CInt
+  ,_velocity  :: Velocity
   }
-  deriving Show
+  deriving (Eq,Show)
 
 -- Move a thing in a direction
 moveThingRight, moveThingLeft, moveThingDown, moveThingUp :: Thing -> Thing
@@ -56,4 +59,7 @@ collidesThing t0 thing = let t1 = _thingTile thing in
 
 collidesThings :: Tile -> [Thing] -> Bool
 collidesThings t0 = any (collidesThing t0)
+
+mapVelocity :: (Velocity -> Velocity) -> Thing -> Thing
+mapVelocity f thing = thing{_velocity = f . _velocity $ thing}
 

@@ -18,6 +18,7 @@ import Game.Thing
 import Game.Stage
 import Game.Background
 import Game.Camera
+import Game.Velocity
 
 import Debug.Trace
 
@@ -74,11 +75,11 @@ initialGame renderer width height = do
       boundaryTop    = 0
       boundaryBottom = (tilesHeight tileRows) * tileSize
 
-  let thing0 = Thing (textureTile yellowCircleTexture (P $ V2 192 256) tileSize) True (V2 0 0)
-      thing1 = Thing (textureTile yellowCircleTexture (P $ V2 128 128) tileSize) True (V2 0 0)
+  let thing0 = Thing (textureTile yellowCircleTexture (P $ V2 192 256) tileSize) True (Velocity $ V2 0 0)
+      thing1 = Thing (textureTile yellowCircleTexture (P $ V2 128 128) tileSize) True (Velocity $ V2 0 0)
 
   let background = fromJust $ mkBackground exampleTiles
-      subject    = Thing (moveR tileSize $ moveD (tileSize * 6) $ subjectTile) True (V2 0 0)
+      subject    = Thing (moveU 1 $ moveR tileSize $ moveD (tileSize * 6) $ subjectTile) True (Velocity $ V2 1 0)
       stage      = fromJust $ setStage background subject [thing0,thing1]
 
   --todo pan bottom edge
@@ -86,7 +87,7 @@ initialGame renderer width height = do
                                    $ mkCamera (V2 width height)
                                               (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
-  return $ Game quit stage initialCamera 
+  return $ Game quit stage initialCamera
 
 data Command
   = MoveLeft
@@ -208,15 +209,17 @@ runCommand c g = case c of
     -> g{_quit = True}
 
 -- Render a step of the game state
-stepGame :: Ord t => (Window,Renderer) -> Game t -> IO Bool
-stepGame (window,renderer) game = if _quit game then return True else do
+stepGame :: (Show t,Ord t) => (Window,Renderer) -> Game t -> IO (Bool,Game t)
+stepGame (window,renderer) game = if _quit game then return (True,game) else do
   -- Screen to white
   rendererDrawColor renderer $= white
+  let stage' = applyVelocitySubject (_stage game)
+      game'  = game{_stage = stage'}
 
   -- Shoot a frame of the game
-  shoot (_camera game) renderer (_stage game)
+  shoot (_camera game') renderer stage'
 
-  return False
+  return (False,game')
 
 
 -- Main game loop
@@ -231,8 +234,8 @@ gameLoop (window,renderer) game = do
   let nextGame = runCommands game commands
 
   -- Render the new game state, which returns whether to quit
-  shouldQuit <- stepGame (window,renderer) nextGame
-  (if shouldQuit then quitGame else gameLoop) (window,renderer) nextGame 
+  (shouldQuit,nextGame') <- stepGame (window,renderer) nextGame
+  (if shouldQuit then quitGame else gameLoop) (window,renderer) nextGame'
 
 quitGame :: Ord t => (Window,Renderer) -> Game t -> IO ()
 quitGame (window,renderer) g = do
