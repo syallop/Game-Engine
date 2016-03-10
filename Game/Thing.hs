@@ -12,12 +12,14 @@ module Game.Thing
 
 import Foreign.C.Types
 
+import Linear
 import Game.Tile
 
 -- A _thing_ with a drawable tile
 data Thing = Thing
   {_thingTile :: Tile
   ,_isSolid   :: Bool
+  ,_velocity  :: V2 CInt
   }
   deriving Show
 

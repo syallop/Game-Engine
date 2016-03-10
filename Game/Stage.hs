@@ -21,10 +21,6 @@ import Game.Tiles
 import Game.Background
 import Game.Thing
 
-data Subject = Subject
-  {_subjectTile :: Tile
-  }
-  deriving Show
 
 data Stage t = Stage
   {_background :: Background t
@@ -32,6 +28,8 @@ data Stage t = Stage
   ,_things     :: [Thing]
   }
   deriving Show
+
+type Subject = Thing
 
 -- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
@@ -57,7 +55,7 @@ moveSubjectUpBy    y = mapSubjectTile (moveU y)
 -- collide with the background
 mapSubjectTile :: (Show t,Ord t) => (Tile -> Tile) -> Stage t -> Stage t
 mapSubjectTile f stg =
-  let tile     = _subjectTile . _subject $ stg
+  let tile     = _thingTile . _subject $ stg
       nextTile = f tile
      in setSubjectTile nextTile stg
 
@@ -70,13 +68,13 @@ setSubjectTile tile stg =
      in if collidesTiles tile background
         || collidesThings tile (things stg)
           then stg
-          else stg{_subject = subject{_subjectTile = tile}}
+          else stg{_subject = subject{_thingTile = tile}}
 
 stageBackgroundTiles :: Stage t -> Tiles t
 stageBackgroundTiles = backgroundTiles . _background
 
 stageSubjectTile :: Stage t -> Tile
-stageSubjectTile = _subjectTile . _subject
+stageSubjectTile = _thingTile . _subject
 
 things :: Stage t -> [Thing]
 things = _things

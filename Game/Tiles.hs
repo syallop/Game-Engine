@@ -187,7 +187,7 @@ indexInRange (V2 xIx yIx) ts = (0 <= xIx) && (xIx < (tilesWidth . _tileRows $ ts
 isSolidAt :: Show t => Ord t => TilesIndex -> Tiles t -> Bool
 isSolidAt ix ts =
   let minfo = indexTileInfo ix ts
-     in maybe False isSolid minfo 
+     in maybe False isSolid minfo
 
 -- Is a tile solid?
 isSolid :: TileInfo -> Bool
@@ -196,11 +196,11 @@ isSolid = _tileSolid
 -- Index the tileinfo at row,column
 indexTileInfo :: Show t => Ord t => TilesIndex -> Tiles t -> Maybe TileInfo
 indexTileInfo (V2 xIx yIx) ts = do
-  tileRow <- indexTileRows (_tileRows ts) yIx 
-  t       <- indexTileRow tileRow xIx 
+  tileRow <- indexTileRows (_tileRows ts) yIx
+  t       <- indexTileRow tileRow xIx
   M.lookup t (_tileSet ts)
 
--- index a row from a rows 
+-- index a row from a rows
 indexTileRows :: Rows t -> CInt -> Maybe (Row t)
 indexTileRows (Rows [])     ix = Nothing
 indexTileRows (Rows (r:rs)) ix
