@@ -74,8 +74,8 @@ initialGame renderer width height = do
       boundaryTop    = 0
       boundaryBottom = (tilesHeight tileRows) * tileSize
 
-  let thing0 = Thing $ textureTile yellowCircleTexture (P $ V2 192 256) tileSize
-      thing1 = Thing $ textureTile yellowCircleTexture (P $ V2 128 128) tileSize
+  let thing0 = Thing (textureTile yellowCircleTexture (P $ V2 192 256) tileSize) True
+      thing1 = Thing (textureTile yellowCircleTexture (P $ V2 128 128) tileSize) True
 
   let background = fromJust $ mkBackground exampleTiles
       subject    = Subject $ moveR tileSize $ moveD (tileSize * 6) $ subjectTile

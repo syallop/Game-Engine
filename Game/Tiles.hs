@@ -17,7 +17,7 @@ module Game.Tiles
   ,tilesHeight
   ,tilesWidth
 
-  ,collides
+  ,collidesTiles
   )
   where
 
@@ -134,8 +134,8 @@ tileInfoInstance inf pos radius = case inf of
     -> textureTile t pos radius
 
 -- Does a tile collide with any solid tiles it would cover?
-collides :: Show t => Ord t => Tile -> Tiles t -> Bool
-collides t ts = case covers t ts of
+collidesTiles :: Show t => Ord t => Tile -> Tiles t -> Bool
+collidesTiles t ts = case covers t ts of
 
   -- No tiles covered => out of range => no collision
   Nothing

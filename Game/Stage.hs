@@ -62,12 +62,13 @@ mapSubjectTile f stg =
      in setSubjectTile nextTile stg
 
 -- Set the subject to the given tile, if it does not collide with
--- the background
+-- the background or any of the things
 setSubjectTile :: (Show t,Ord t) => Tile -> Stage t -> Stage t
 setSubjectTile tile stg =
   let background = backgroundTiles . _background $ stg
       subject    = _subject stg
-     in if collides tile background
+     in if collidesTiles tile background
+        || collidesThings tile (things stg)
           then stg
           else stg{_subject = subject{_subjectTile = tile}}
 
