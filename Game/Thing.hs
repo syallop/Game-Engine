@@ -2,6 +2,7 @@ module Game.Thing
   (Thing(..)
   ,moveThingRight,moveThingLeft,moveThingDown,moveThingUp
   ,moveThingRightBy,moveThingLeftBy,moveThingDownBy,moveThingUpBy
+  ,moveThingBy
   ,mapThingTile
   ,thingTile
 
@@ -39,6 +40,9 @@ moveThingRightBy x = mapThingTile (moveR x)
 moveThingLeftBy  x = mapThingTile (moveL x)
 moveThingDownBy  y = mapThingTile (moveD y)
 moveThingUpBy    y = mapThingTile (moveU y)
+
+moveThingBy :: V2 CInt -> Thing -> Thing
+moveThingBy (V2 x y) thing = moveThingDownBy y . moveThingRightBy x $ thing
 
 -- map a function across a things tile
 mapThingTile :: (Tile -> Tile) -> Thing -> Thing

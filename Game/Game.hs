@@ -172,16 +172,16 @@ runCommands = foldr runCommand
 runCommand :: Show t => Ord t => Command -> Game t -> Game t
 runCommand c g = case c of
   MoveLeft
-    -> g{_stage = moveSubjectLeft $ _stage g} 
+    -> g{_stage = fromMaybe (_stage g) $ moveSubjectLeft $ _stage g}
 
   MoveRight
-    -> g{_stage = moveSubjectRight $ _stage g}
+    -> g{_stage = fromMaybe (_stage g) $ moveSubjectRight $ _stage g}
 
   MoveUp
-    -> g{_stage = moveSubjectUp $ _stage g}
+    -> g{_stage = fromMaybe (_stage g) $ moveSubjectUp $ _stage g}
 
   MoveDown
-    -> g{_stage = moveSubjectDown $ _stage g}
+    -> g{_stage = fromMaybe (_stage g) $ moveSubjectDown $ _stage g}
 
   PanLeft
     -> g{_camera = panLeft $ _camera g}
@@ -213,7 +213,7 @@ stepGame :: (Show t,Ord t) => (Window,Renderer) -> Game t -> IO (Bool,Game t)
 stepGame (window,renderer) game = if _quit game then return (True,game) else do
   -- Screen to white
   rendererDrawColor renderer $= white
-  let stage' = applyVelocitySubject (_stage game)
+  let stage' = tickStage (_stage game)
       game'  = game{_stage = stage'}
 
   -- Shoot a frame of the game

@@ -15,6 +15,11 @@ module Game.Tile
   ,posY
   ,radius
 
+  ,leftX
+  ,rightX
+  ,topY
+  ,bottomY
+
   ,move
   ,moveR
   ,moveL
@@ -76,6 +81,18 @@ posX   t = let Rectangle (P (V2 x _)) _        = _tileRectangle t in x
 -- y coordinate of top of tile
 posY :: Tile -> CInt
 posY   t = let Rectangle (P (V2 _ y)) _        = _tileRectangle t in y
+
+leftX :: Tile -> CInt
+leftX = posX
+
+rightX :: Tile -> CInt
+rightX t = leftX t + radius t
+
+topY :: Tile -> CInt
+topY = posY
+
+bottomY :: Tile -> CInt
+bottomY t = topY t + radius t
 
 -- radius of tile
 radius :: Tile -> CInt
