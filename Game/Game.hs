@@ -79,8 +79,9 @@ initialGame renderer width height = do
       thing1 = Thing (textureTile yellowCircleTexture (P $ V2 128 128) tileSize) True (Velocity $ V2 1 1)
 
   let background = fromJust $ mkBackground exampleTiles
-      subject    = Thing (moveR 1 $ moveU 1 $ moveR tileSize $ moveD (tileSize * 6) $ subjectTile) True (Velocity $ V2 2 0)
-      stage      = fromJust $ setStage background subject [thing0,thing1]
+      subject    = Thing (moveR 1 $ moveR tileSize $ moveD (tileSize * 1) $ subjectTile) True (Velocity $ V2 0 0)
+      gravity    = 1
+      stage      = fromJust $ setStage background subject [thing0,thing1] gravity
 
   --todo pan bottom edge
   let initialCamera  = panTo (V2 0 ((backgroundHeight background) - height)) $ fromJust

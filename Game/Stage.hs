@@ -31,18 +31,20 @@ data Stage t = Stage
   {_background :: Background t
   ,_subject    :: Subject
   ,_things     :: [Thing]
+
+  ,_gravity    :: CInt
   }
   deriving (Eq,Show)
 
 type Subject = Thing
 
 tickStage :: (Show t,Ord t) => Stage t -> Stage t
-tickStage = applyVelocityThings . applyVelocitySubject
+tickStage = applyVelocityThings . applyVelocitySubject . applyGravitySubject
 
 -- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
-setStage :: Background t -> Subject -> [Thing] -> Maybe (Stage t)
-setStage b s things = Just $ Stage b s things
+setStage :: Background t -> Subject -> [Thing] -> CInt -> Maybe (Stage t)
+setStage b s things gravity = Just $ Stage b s things gravity
 
 -- Move a subject in a direction if they do not collide with the background
 moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp :: (Show t,Ord t) => Stage t -> Maybe (Stage t)
@@ -118,4 +120,10 @@ applyVelocityThings stg =
   where
     applyVelocityThing :: Thing -> Thing
     applyVelocityThing thing = tryMoveThingBy (_vel . _velocity $ thing) thing (not . collidesStageBackground stg)
+
+-- Apply acceleration due to gravity to the subject
+applyGravitySubject :: Stage t -> Stage t
+applyGravitySubject stg =
+  stg{_subject = mapVelocity (\(Velocity (V2 vX vY)) -> Velocity $ V2 vX (vY + _gravity stg)) $ _subject stg
+     }
 
