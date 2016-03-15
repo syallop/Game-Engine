@@ -13,6 +13,8 @@ module Game.Stage
   ,things
   {-,applyVelocitySubject-}
   ,tickStage
+
+  ,applyForceSubject
   )
   where
 
@@ -24,6 +26,7 @@ import Game.Tiles
 import Game.Background
 import Game.Thing
 import Game.Velocity
+import Game.Force
 
 import Debug.Trace
 
@@ -32,7 +35,7 @@ data Stage t = Stage
   ,_subject    :: Subject
   ,_things     :: [Thing]
 
-  ,_gravity    :: CInt
+  ,_gravity    :: Force
   }
   deriving (Eq,Show)
 
@@ -43,7 +46,7 @@ tickStage = applyVelocityThings . applyGravityThings . applyVelocitySubject . ap
 
 -- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
-setStage :: Background t -> Subject -> [Thing] -> CInt -> Maybe (Stage t)
+setStage :: Background t -> Subject -> [Thing] -> Force -> Maybe (Stage t)
 setStage b s things gravity = Just $ Stage b s things gravity
 
 -- Move a subject in a direction if they do not collide with the background
@@ -123,13 +126,15 @@ applyVelocityThings stg =
 
 -- Apply acceleration due to gravity to the subject
 applyGravitySubject :: Stage t -> Stage t
-applyGravitySubject stg =
-  stg{_subject = applyForce (V2 0 (_gravity stg)) $ _subject stg
-                 {-mapVelocity (\(Velocity (V2 vX vY)) -> Velocity $ V2 vX (vY + _gravity stg)) $ _subject stg-}
-     }
+applyGravitySubject stg = applyForceSubject (_gravity stg) stg
 
 applyGravityThings :: Stage t -> Stage t
 applyGravityThings stg =
-  stg{_things = map (applyForce (V2 0 (_gravity stg))) (_things stg)
+  stg{_things = map (applyForceThing (_gravity stg)) (_things stg)
+     }
+
+applyForceSubject :: Force -> Stage t -> Stage t
+applyForceSubject force stg =
+  stg{_subject = applyForceThing force $ _subject stg
      }
 

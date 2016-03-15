@@ -13,7 +13,7 @@ module Game.Thing
   ,collidesThings
 
   ,mapVelocity
-  ,applyForce
+  ,applyForceThing
   )
   where
 
@@ -22,6 +22,7 @@ import Foreign.C.Types
 import Linear
 import Game.Tile
 import Game.Velocity
+import Game.Force
 
 -- A _thing_ with a drawable tile
 data Thing = Thing
@@ -161,8 +162,8 @@ iterateStateful a st fa = case fa a st of
     -> st'
 
 -- Apply a force to a thing, changing its velocity if it has mass.
-applyForce :: V2 CInt -> Thing -> Thing
-applyForce (V2 aX aY) thing =
+applyForceThing :: Force -> Thing -> Thing
+applyForceThing (Force (V2 aX aY)) thing =
   if _hasMass thing
     then mapVelocity (\(Velocity (V2 vX vY)) -> Velocity $ V2 (vX + aX) (vY + aY)) thing
     else thing

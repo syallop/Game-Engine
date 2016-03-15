@@ -19,6 +19,7 @@ import Game.Stage
 import Game.Background
 import Game.Camera
 import Game.Velocity
+import Game.Force
 
 import Debug.Trace
 
@@ -80,7 +81,7 @@ initialGame renderer width height = do
 
   let background = fromJust $ mkBackground exampleTiles
       subject    = Thing (moveR tileSize $ moveD (tileSize * 1) $ subjectTile) True True (Velocity $ V2 0 0)
-      gravity    = 1
+      gravity    = Force $ V2 0 1
       stage      = fromJust $ setStage background subject [thing0,thing1] gravity
 
   --todo pan bottom edge
@@ -103,6 +104,7 @@ data Command
 
   | TrackSubject
 
+  | Jump
   | Shoot
   | Quit
   deriving (Show)
@@ -160,7 +162,8 @@ toCommand event = case eventPayload event of
 
                KeycodeT     -> Just TrackSubject
 
-               KeycodeSpace -> Just Shoot
+               KeycodeSpace -> Just Jump
+               KeycodeE     -> Just Shoot
                KeycodeQ     -> Just Quit
                _  -> Nothing
     _ -> Nothing
@@ -195,6 +198,9 @@ runCommand c g = case c of
 
   PanUp
     -> g{_camera = panUp $ _camera g}
+
+  Jump
+    -> g{_stage = applyForceSubject (Force $ V2 0 (-10)) (_stage g)}
 
 
   TrackSubject
