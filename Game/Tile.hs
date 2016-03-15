@@ -10,6 +10,7 @@ module Game.Tile
   ,colorTile
   ,textureTile
   ,loadTextureTile
+  ,invisibleTile
 
   ,posX
   ,posY
@@ -66,6 +67,10 @@ data Tile
   | TextureTile
     {_tileRectangle :: Rectangle CInt
     ,_tileTexture   :: Texture
+    }
+
+  | InvisibleTile
+    {_tileRectangle :: Rectangle CInt
     }
   deriving Eq
 
@@ -161,6 +166,10 @@ renderTile renderer t = case t of
   TextureTile r t
     -> copy renderer t Nothing $ Just r
 
+  InvisibleTile r
+    -> return ()
+    -- -> drawRect renderer $ Just r
+
 -- create a ColorTile with a color posiiton and radius
 colorTile :: TileColor -> Point V2 CInt -> CInt -> Tile
 colorTile color pos radius = ColorTile (Rectangle pos (V2 radius radius)) color
@@ -180,4 +189,8 @@ loadTexture renderer fp = do
   texture <- createTextureFromSurface renderer surface
   freeSurface surface
   return texture
+
+-- create an invisible tile with a position and radius
+invisibleTile :: Point V2 CInt -> CInt -> Tile
+invisibleTile pos radius = InvisibleTile (Rectangle pos (V2 radius radius))
 

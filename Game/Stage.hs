@@ -8,6 +8,7 @@ module Game.Stage
   ,setSubjectTile
 
   ,stageBackgroundTiles
+  ,stageBackgroundImage
   ,stageSubjectTile
 
   ,things
@@ -18,6 +19,7 @@ module Game.Stage
   )
   where
 
+import SDL
 import Linear
 import Foreign.C.Types
 
@@ -55,7 +57,6 @@ moveSubjectRight = moveSubjectRightBy 1
 moveSubjectLeft  = moveSubjectLeftBy 1
 moveSubjectDown  = moveSubjectDownBy 1
 moveSubjectUp    = moveSubjectUpBy 1
-
 -- Move a subject in a direction by a positive amount if they do not collide
 -- with the background
 moveSubjectRightBy, moveSubjectLeftBy, moveSubjectDownBy, moveSubjectUpBy :: (Show t,Ord t) => CInt -> Stage t -> Maybe (Stage t)
@@ -85,6 +86,9 @@ setSubjectTile tile stg =
 
 stageBackgroundTiles :: Stage t -> Tiles t
 stageBackgroundTiles = backgroundTiles . _background
+
+stageBackgroundImage :: Stage t -> Maybe Texture
+stageBackgroundImage = backgroundImage . _background
 
 stageSubjectTile :: Stage t -> Tile
 stageSubjectTile = _thingTile . _subject

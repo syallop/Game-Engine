@@ -40,6 +40,8 @@ initialGame renderer width height = do
    ,whiteTexture
    ,playerTexture
    ,yellowCircleTexture
+   ,moneyBagTexture
+   ,forestTexture
    ] <- mapM (loadTexture renderer)
                    ["red.bmp"
                    ,"green.bmp"
@@ -48,15 +50,17 @@ initialGame renderer width height = do
                    ,"white.bmp"
                    ,"playerT.bmp"
                    ,"yellowCircle.bmp"
+                   ,"moneyBag.bmp"
+                   ,"forest.bmp"
                    ]
 
   -- Map each tile to info describing it
   let tileSet :: M.Map TileType TileInfo
-      tileSet = M.fromList [(Floor    ,InfoTextured greenTexture True)
-                           ,(Ceiling  ,InfoTextured blueTexture  True)
-                           ,(WallLeft ,InfoTextured blueTexture  True)
-                           ,(WallRight,InfoTextured blackTexture True)
-                           ,(Air      ,InfoTextured whiteTexture False)
+      tileSet = M.fromList [(Floor    ,InfoTextured  greenTexture True)
+                           ,(Ceiling  ,InfoTextured  blueTexture  True)
+                           ,(WallLeft ,InfoTextured  blueTexture  True)
+                           ,(WallRight,InfoTextured  blackTexture True)
+                           ,(Air      ,InfoInvisible              False)
                            ]
       tileSize = 64
 
@@ -76,10 +80,10 @@ initialGame renderer width height = do
       boundaryTop    = 0
       boundaryBottom = (tilesHeight tileRows) * tileSize
 
-  let thing0 = Thing (textureTile yellowCircleTexture (P $ V2 192 256) tileSize) True True (Velocity $ V2 0 0)
-      thing1 = Thing (textureTile yellowCircleTexture (P $ V2 128 128) tileSize) True False (Velocity $ V2 0 0)
+  let thing0 = Thing (textureTile moneyBagTexture (P $ V2 192 256) tileSize) True True (Velocity $ V2 0 0)
+      thing1 = Thing (textureTile moneyBagTexture (P $ V2 128 128) tileSize) True False (Velocity $ V2 0 0)
 
-  let background = fromJust $ mkBackground exampleTiles
+  let background = fromJust $ mkBackground exampleTiles (Just forestTexture)
       subject    = Thing (moveR tileSize $ moveD (tileSize * 1) $ subjectTile) True True (Velocity $ V2 0 0)
       gravity    = Force $ V2 0 1
       stage      = fromJust $ setStage background subject [thing0,thing1] gravity

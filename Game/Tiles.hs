@@ -43,6 +43,9 @@ data TileInfo
     {_tileInfoTexture :: Texture
     ,_tileSolid       :: Bool
     }
+  | InfoInvisible
+    {_tileSolid       :: Bool
+    }
     deriving Eq
 
 instance Show TileInfo where
@@ -52,6 +55,9 @@ instance Show TileInfo where
 
     InfoTextured t s
       -> "InfoTextured " ++ show s
+
+    InfoInvisible s
+      -> "InfoInvisible " ++ show s
 
 
 -- Map elements of a tile type 't' to their info
@@ -133,6 +139,9 @@ tileInfoInstance inf pos radius = case inf of
 
   InfoTextured t _
     -> textureTile t pos radius
+
+  InfoInvisible r
+    -> invisibleTile pos radius
 
 -- Does a tile collide with any solid tiles it would cover?
 collidesTiles :: Show t => Ord t => Tile -> Tiles t -> Bool

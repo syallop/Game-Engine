@@ -2,6 +2,7 @@ module Game.Background
   (Background()
   ,mkBackground
   ,backgroundTiles
+  ,backgroundImage
   ,backgroundTilesWide
   ,backgroundTilesTall
   ,backgroundTileRadius
@@ -9,6 +10,7 @@ module Game.Background
   ,backgroundHeight
   ) where
 
+import SDL
 import Foreign.C.Types
 
 import Game.Tiles
@@ -16,15 +18,23 @@ import Game.Tiles
 -- A Background is (currently) just 'Tiles'
 data Background t = Background
   {_backgroundTiles :: Tiles t
+  ,_backgroundImage :: Maybe Texture
   }
-  deriving (Eq,Show)
+  deriving (Eq)
 
-mkBackground :: Tiles t -> Maybe (Background t)
-mkBackground = Just . Background
+instance Show t => Show (Background t) where
+  show (Background ts mi) = "Background " ++ show ts ++ maybe "NoBackgroundImage" (const "BackgroundImage") mi
+
+mkBackground :: Tiles t -> Maybe Texture -> Maybe (Background t)
+mkBackground tiles mTexture = Just $ Background tiles mTexture
 
 -- The 'Tiles t' which make up a background
 backgroundTiles :: Background t -> Tiles t
 backgroundTiles = _backgroundTiles
+
+-- A possible texture drawn behind any background tiles
+backgroundImage :: Background t -> Maybe Texture
+backgroundImage = _backgroundImage
 
 -- The number of tiles wide the background is
 backgroundTilesWide:: Background t -> CInt

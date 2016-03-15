@@ -175,6 +175,12 @@ shoot c renderer stage = do
       subjectY = posY subjectTile
       c' = if _trackSubject c then panTowards (V2 subjectX subjectY) c else c
 
+
+  -- render a possible background image
+  case stageBackgroundImage stage of
+    Nothing                -> return ()
+    Just backgroundTexture -> copy renderer backgroundTexture Nothing $ Just (Rectangle (P $ V2 0 0) (V2 (_width c') (_height c')))
+
   -- render the background that falls within the frame
   renderTiles (V2 (_panX c') (_panY c'))
               (_width c',_height c')
