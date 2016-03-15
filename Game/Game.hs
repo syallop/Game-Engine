@@ -11,6 +11,7 @@ import GHC.Word
 
 import qualified Data.Map as M
 import Data.Maybe
+import Data.List
 
 import Game.Tile
 import Game.Tiles
@@ -67,8 +68,8 @@ initialGame renderer width height = do
       subjectTile = textureTile playerTexture (P $ V2 0 0) tileSize
 
       line       = Row $ WallLeft : (replicate 10 Air) ++ [WallRight]
-      aboveBottomLine = Row $ WallLeft : Air : Air : Air : Air : Air      : Air : Air : Floor : Air : Air : WallRight : [] 
-      bottomLine      = Row $ WallLeft : Air : Air : Air : Air : WallLeft : Air : Air : Floor : Air : Air : WallRight : [] 
+      aboveBottomLine = Row $ WallLeft : Air : Air : Air : Air : Air      : Air : Air : Floor : Air : Air : WallRight : []
+      bottomLine      = Row $ WallLeft : Air : Air : Air : Air : WallLeft : Air : Air : Floor : Air : Air : WallRight : []
       tileRows = Rows $ (replicate 5 line) ++ [aboveBottomLine,bottomLine] ++ [Row $ replicate 12 Floor]
       exampleTiles = fromJust $ mkTiles tileRows tileSet tileSize
 
@@ -111,7 +112,7 @@ data Command
   | Jump
   | Shoot
   | Quit
-  deriving (Show)
+  deriving (Show,Eq)
 
 data TileType
   = Floor
@@ -204,7 +205,7 @@ runCommand c g = case c of
     -> g{_camera = panUp $ _camera g}
 
   Jump
-    -> g{_stage = applyForceSubject (Force $ V2 0 (-10)) (_stage g)}
+    -> g{_stage = pushForceSubject (Force $ V2 0 (-15)) (_stage g)}
 
 
   TrackSubject
@@ -239,7 +240,7 @@ gameLoop (window,renderer) game = do
   -- Parse events into Commands
   events <- pollEvents
   let commands :: [Command]
-      commands = catMaybes $ map toCommand events
+      commands = nub $ mapMaybe toCommand events
 
   -- calculate the next game state by the effect of all the commands
   let nextGame = runCommands game commands

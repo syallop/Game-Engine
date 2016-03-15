@@ -16,6 +16,7 @@ module Game.Stage
   ,tickStage
 
   ,applyForceSubject
+  ,pushForceSubject
   )
   where
 
@@ -132,13 +133,27 @@ applyVelocityThings stg =
 applyGravitySubject :: Stage t -> Stage t
 applyGravitySubject stg = applyForceSubject (_gravity stg) stg
 
+-- apply gravity to all of the Things
 applyGravityThings :: Stage t -> Stage t
 applyGravityThings stg =
   stg{_things = map (applyForceThing (_gravity stg)) (_things stg)
      }
 
+-- Apply a force to a subject to change its velocity
 applyForceSubject :: Force -> Stage t -> Stage t
 applyForceSubject force stg =
   stg{_subject = applyForceThing force $ _subject stg
      }
 
+-- Apply force to a subject, only if it is making contact with a solid object in the opposite
+-- direction with which to 'push' off of.
+pushForceSubject :: (Show t,Ord t) => Force -> Stage t -> Stage t
+pushForceSubject force stg
+  | collidesStageBackground stg (thingTile . moveThingBy (V2 x y) . _subject $ stg) = applyForceSubject force stg
+  | otherwise = stg
+
+  where
+    x = if isPositive $ xComponent force then -1 else 1
+    y = if isPositive $ yComponent force then -1 else 1
+
+    isPositive = (>= 0)
