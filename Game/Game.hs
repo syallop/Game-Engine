@@ -75,11 +75,11 @@ initialGame renderer width height = do
       boundaryTop    = 0
       boundaryBottom = (tilesHeight tileRows) * tileSize
 
-  let thing0 = Thing (textureTile yellowCircleTexture (P $ V2 192 256) tileSize) True (Velocity $ V2 1 1)
-      thing1 = Thing (textureTile yellowCircleTexture (P $ V2 128 128) tileSize) True (Velocity $ V2 1 1)
+  let thing0 = Thing (textureTile yellowCircleTexture (P $ V2 192 256) tileSize) True True (Velocity $ V2 0 0)
+      thing1 = Thing (textureTile yellowCircleTexture (P $ V2 128 128) tileSize) True False (Velocity $ V2 0 0)
 
   let background = fromJust $ mkBackground exampleTiles
-      subject    = Thing (moveR 1 $ moveR tileSize $ moveD (tileSize * 1) $ subjectTile) True (Velocity $ V2 0 0)
+      subject    = Thing (moveR tileSize $ moveD (tileSize * 1) $ subjectTile) True True (Velocity $ V2 0 0)
       gravity    = 1
       stage      = fromJust $ setStage background subject [thing0,thing1] gravity
 

@@ -13,6 +13,7 @@ module Game.Thing
   ,collidesThings
 
   ,mapVelocity
+  ,applyForce
   )
   where
 
@@ -26,6 +27,7 @@ import Game.Velocity
 data Thing = Thing
   {_thingTile :: Tile
   ,_isSolid   :: Bool
+  ,_hasMass   :: Bool
   ,_velocity  :: Velocity
   }
   deriving (Eq,Show)
@@ -157,4 +159,11 @@ iterateStateful a st fa = case fa a st of
 
   Right st'
     -> st'
+
+-- Apply a force to a thing, changing its velocity if it has mass.
+applyForce :: V2 CInt -> Thing -> Thing
+applyForce (V2 aX aY) thing =
+  if _hasMass thing
+    then mapVelocity (\(Velocity (V2 vX vY)) -> Velocity $ V2 (vX + aX) (vY + aY)) thing
+    else thing
 

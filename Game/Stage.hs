@@ -39,7 +39,7 @@ data Stage t = Stage
 type Subject = Thing
 
 tickStage :: (Show t,Ord t) => Stage t -> Stage t
-tickStage = applyVelocityThings . applyVelocitySubject . applyGravitySubject
+tickStage = applyVelocityThings . applyGravityThings . applyVelocitySubject . applyGravitySubject
 
 -- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
@@ -124,6 +124,12 @@ applyVelocityThings stg =
 -- Apply acceleration due to gravity to the subject
 applyGravitySubject :: Stage t -> Stage t
 applyGravitySubject stg =
-  stg{_subject = mapVelocity (\(Velocity (V2 vX vY)) -> Velocity $ V2 vX (vY + _gravity stg)) $ _subject stg
+  stg{_subject = applyForce (V2 0 (_gravity stg)) $ _subject stg
+                 {-mapVelocity (\(Velocity (V2 vX vY)) -> Velocity $ V2 vX (vY + _gravity stg)) $ _subject stg-}
+     }
+
+applyGravityThings :: Stage t -> Stage t
+applyGravityThings stg =
+  stg{_things = map (applyForce (V2 0 (_gravity stg))) (_things stg)
      }
 
