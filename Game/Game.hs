@@ -75,11 +75,11 @@ initialGame renderer width height = do
       boundaryTop    = 0
       boundaryBottom = (tilesHeight tileRows) * tileSize
 
-  let thing0 = Thing (textureTile yellowCircleTexture (P $ V2 192 256) tileSize) True (Velocity $ V2 0 0)
-      thing1 = Thing (textureTile yellowCircleTexture (P $ V2 128 128) tileSize) True (Velocity $ V2 0 0)
+  let thing0 = Thing (textureTile yellowCircleTexture (P $ V2 192 256) tileSize) True (Velocity $ V2 1 1)
+      thing1 = Thing (textureTile yellowCircleTexture (P $ V2 128 128) tileSize) True (Velocity $ V2 1 1)
 
   let background = fromJust $ mkBackground exampleTiles
-      subject    = Thing (moveU 1 $ moveR tileSize $ moveD (tileSize * 6) $ subjectTile) True (Velocity $ V2 1 0)
+      subject    = Thing (moveR 1 $ moveU 1 $ moveR tileSize $ moveD (tileSize * 6) $ subjectTile) True (Velocity $ V2 2 0)
       stage      = fromJust $ setStage background subject [thing0,thing1]
 
   --todo pan bottom edge
