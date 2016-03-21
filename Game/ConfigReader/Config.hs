@@ -3,7 +3,8 @@ module Game.ConfigReader.Config where
 import Game.ConfigReader.Arg
 import Game.ConfigReader.Option
 
-import Data.Text
+import Data.Maybe
+import Data.Text hiding (map)
 
 data Config = Config
   {_configOptions    :: [Option]
@@ -18,4 +19,13 @@ data DefaultOption = DefaultOption
   ,_defaultArgs       :: [SomeArg]
   }
   deriving (Show,Eq)
+
+-- Is an option set, either explicitly or by default?
+isSet :: Text -> Config -> Bool
+isSet w config = elem w $ (map _optionWord . _configOptions $ config) ++ (map _defaultOption . _defaultedOptions $ config)
+
+-- Assuming an option is set, either explicitly or by default, return its args.
+getArgs :: Text -> Config -> [SomeArg]
+getArgs w config = fromJust $ lookup w $ (map (\o -> (_optionWord o      ,_optionArgs  o)) . _configOptions    $ config)
+                                      ++ (map (\d -> (_defaultOption d,_defaultArgs d)) . _defaultedOptions $ config)
 

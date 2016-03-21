@@ -1,5 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
 import Control.Monad
@@ -11,7 +12,9 @@ import GHC.Word
 
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Char
 import Data.List
+import Data.Text as T hiding (replicate,foldr,map,toLower)
 
 import Game.Tile
 import Game.Tiles
@@ -21,6 +24,7 @@ import Game.Background
 import Game.Camera
 import Game.Velocity
 import Game.Force
+import Game.TileConfigReader
 
 import Debug.Trace
 
@@ -55,15 +59,24 @@ initialGame renderer width height = do
                    ,"forest.bmp"
                    ]
 
+  -- An example tileset with Text keys
+  {-exTilesetText :: TileSet Text <- parseTileSet "R/Tilesets/ExampleTileset1" renderer-}
+  exTilesetText :: TileSet Text <- parseTileSet "R/Tilesets/ExampleTileset2" renderer
+
+  -- Convert the example tileset to TileType keys, under the assumption that TileType must
+  -- have the same ordering and naming...
+  let exTileset :: TileSet TileType
+      exTileset = M.mapKeysMonotonic toTileType exTilesetText
+
   -- Map each tile to info describing it
-  let tileSet :: M.Map TileType TileInfo
-      tileSet = M.fromList [(Floor    ,InfoTextured  greenTexture True)
-                           ,(Ceiling  ,InfoTextured  blueTexture  True)
-                           ,(WallLeft ,InfoTextured  blueTexture  True)
-                           ,(WallRight,InfoTextured  blackTexture True)
-                           ,(Air      ,InfoInvisible              False)
-                           ]
-      tileSize = 64
+  {-let tileSet :: M.Map TileType TileInfo-}
+      {-tileSet = M.fromList [(Floor    ,InfoTextured  greenTexture True)-}
+                           {-,(Ceiling  ,InfoTextured  blueTexture  True)-}
+                           {-,(WallLeft ,InfoTextured  blueTexture  True)-}
+                           {-,(WallRight,InfoTextured  blackTexture True)-}
+                           {-,(Air      ,InfoInvisible              False)-}
+                           {-]-}
+  let tileSize = 64
 
       subjectTile = textureTile playerTexture (P $ V2 0 0) tileSize
 
@@ -71,7 +84,7 @@ initialGame renderer width height = do
       aboveBottomLine = Row $ WallLeft : Air : Air : Air : Air : Air      : Air : Air : Floor : Air : Air : WallRight : []
       bottomLine      = Row $ WallLeft : Air : Air : Air : Air : WallLeft : Air : Air : Floor : Air : Air : WallRight : []
       tileRows = Rows $ (replicate 5 line) ++ [aboveBottomLine,bottomLine] ++ [Row $ replicate 12 Floor]
-      exampleTiles = fromJust $ mkTiles tileRows tileSet tileSize
+      exampleTiles = fromJust $ mkTiles tileRows exTileset tileSize
 
 
   let quit = False
@@ -81,8 +94,8 @@ initialGame renderer width height = do
       boundaryTop    = 0
       boundaryBottom = (tilesHeight tileRows) * tileSize
 
-  let thing0 = Thing (textureTile moneyBagTexture (P $ V2 192 256) tileSize) True True (Velocity $ V2 0 0)
-      thing1 = Thing (textureTile moneyBagTexture (P $ V2 128 128) tileSize) True False (Velocity $ V2 0 0)
+  let thing0 = Thing (textureTile moneyBagTexture (P $ V2 192 256) tileSize) False True (Velocity $ V2 0 0)
+      thing1 = Thing (textureTile moneyBagTexture (P $ V2 128 128) tileSize) False False (Velocity $ V2 0 0)
 
   let background = fromJust $ mkBackground exampleTiles (Just forestTexture)
       subject    = Thing (moveR tileSize $ moveD (tileSize * 1) $ subjectTile) True True (Velocity $ V2 0 0)
@@ -115,12 +128,33 @@ data Command
   deriving (Show,Eq)
 
 data TileType
-  = Floor
-  | Ceiling
-  | WallLeft
-  | WallRight
-  | Air
-  deriving (Eq,Ord,Show)
+  = Aperture
+  | Black
+  | Blue
+  | EmptyTile
+  | Green
+  | MoneyBag
+  | Red
+  | White
+  | YellowCircle
+  deriving (Eq,Ord,Show,Enum)
+
+-- Lookup a Texts corresponding TileType.
+-- Partial. Assuming the TileType is named identically.
+toTileType :: Text -> TileType
+toTileType t = fromJust . lookup t . map (\tt -> (lowerCase . pack . show $ tt,tt)) $ enumFrom Aperture
+
+-- Lower the case of the first character of some Text
+lowerCase :: Text -> Text
+lowerCase t = case uncons t of
+  Nothing     -> t
+  Just (c,cs) -> cons (toLower c) cs
+
+pattern Floor     = Green
+pattern Ceiling   = Blue
+pattern WallLeft  = Blue
+pattern WallRight = Black
+pattern Air      = EmptyTile
 
 -- Set up the window, etc and the initial game
 initializeWindow :: CInt -> CInt -> IO (Window,Renderer)
