@@ -1,5 +1,8 @@
 module Game.Thing
   (Thing(..)
+  ,setMass
+  ,setMassless
+
   ,moveThingRight,moveThingLeft,moveThingDown,moveThingUp
   ,moveThingRightBy,moveThingLeftBy,moveThingDownBy,moveThingUpBy
   ,moveThingBy
@@ -14,6 +17,8 @@ module Game.Thing
 
   ,mapVelocity
   ,applyForceThing
+
+  ,Things
   )
   where
 
@@ -24,6 +29,9 @@ import Game.Tile
 import Game.Velocity
 import Game.Force
 
+import Data.Map
+import Data.Text hiding (any)
+
 -- A _thing_ with a drawable tile
 data Thing = Thing
   {_thingTile :: Tile
@@ -32,6 +40,14 @@ data Thing = Thing
   ,_velocity  :: Velocity
   }
   deriving (Eq,Show)
+
+type Things = Map Text Thing
+
+setMass :: Thing -> Thing
+setMass t = t{_hasMass = True}
+
+setMassless :: Thing -> Thing
+setMassless t = t{_hasMass = False}
 
 -- Move a thing in a direction
 moveThingRight, moveThingLeft, moveThingDown, moveThingUp :: Thing -> Thing

@@ -14,6 +14,7 @@ data PositiveModifier
   | PHas
   | PHave
   | PDoes
+  | PUses
   deriving (Show,Eq)
 
 -- Either a negative or a positive modifier.

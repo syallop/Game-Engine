@@ -1,6 +1,8 @@
 {-# LANGUAGE GADTs #-}
 module Game.ConfigReader.Parser where
 
+import Prelude hiding (takeWhile)
+
 import Game.ConfigReader.Arg
 import Game.ConfigReader.ArgFmt
 import Game.ConfigReader.Config
@@ -14,7 +16,7 @@ import Data.Text hiding (map,foldr)
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import Data.Maybe
-import Data.List
+import Data.List hiding (takeWhile)
 
 import Control.Applicative
 
@@ -74,6 +76,7 @@ modifiersP = many (modifierP <* space)
 modifierP :: Parser Modifier
 modifierP =  isP
          <|> doesP
+         <|> usesP
          <|> try haveP
          <|> hasP
          <|> try notP
@@ -81,6 +84,7 @@ modifierP =  isP
   where
     isP   = (pure $ Right PIs)   <* string' "is"
     doesP = (pure $ Right PDoes) <* string' "does"
+    usesP = (pure $ Right PUses) <* string' "uses"
     haveP = (pure $ Right PHave) <* string' "have"
     hasP  = (pure $ Right PHas)  <* string' "has"
     notP  = (pure $ Left NNot)   <* string' "not"
@@ -88,7 +92,7 @@ modifierP =  isP
 
 someArgsP :: [SomeArgFmt] -> Parser [SomeArg]
 someArgsP []                        = pure []
-someArgsP ((SomeArgFmt aFmt):aFmts) = (:) <$> someArgP aFmt <*> (space *> someArgsP aFmts)
+someArgsP ((SomeArgFmt aFmt):aFmts) = (:) <$> (space *> someArgP aFmt) <*> someArgsP aFmts
 
 someArgP :: ArgFmt t -> Parser SomeArg
 someArgP argFmt = SomeArg <$> argP argFmt
@@ -109,5 +113,5 @@ trueP  = pure (ArgBool True)  <* (string' "true" <|> string' "yes" <|> string "1
 falseP = pure (ArgBool False) <* (string' "false" <|> string' "no" <|> string "0")
 
 argTextP :: Parser (Arg Text)
-argTextP = ArgText . pack <$> (string "\"" *> manyTill anyChar (string "\""))
+argTextP = ArgText . pack <$> ((string "\"") *> (many $ noneOf "\"") <* (string' "\""))
 

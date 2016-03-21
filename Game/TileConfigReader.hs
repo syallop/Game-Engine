@@ -130,18 +130,3 @@ parseTileInfo mTexture configFile tilesetPath = do
     conv :: Int -> Word8
     conv = toEnum . fromEnum
 
-
--- NAME.{EXTENSION}
-extension :: FilePath -> String
-extension = drop 1 . dropWhile (/= '.')
-
--- {NAME}.EXTENSION
-name :: FilePath -> String
-name = takeWhile (/= '.')
-
--- List all the non-special (.,..) entries in a directory
-listDirectory :: FilePath -> IO [FilePath]
-listDirectory path =
-  (filter f) <$> (getDirectoryContents path)
-  where f filename = filename /= "." && filename /= ".."
-

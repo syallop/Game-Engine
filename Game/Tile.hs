@@ -78,6 +78,7 @@ instance Show Tile where
   show t = case t of
     ColorTile r c   -> "ColorTile " ++ show r ++ " " ++ show c
     TextureTile r t -> "TextureTile " ++ show r
+    InvisibleTile r -> "InvisibleTile " ++ show r
 
 -- x coordinate of left of tile
 posX :: Tile -> CInt

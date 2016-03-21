@@ -25,6 +25,7 @@ import Game.Camera
 import Game.Velocity
 import Game.Force
 import Game.TileConfigReader
+import Game.ThingConfigReader
 
 import Debug.Trace
 
@@ -67,15 +68,6 @@ initialGame renderer width height = do
   -- have the same ordering and naming...
   let exTileset :: TileSet TileType
       exTileset = M.mapKeysMonotonic toTileType exTilesetText
-
-  -- Map each tile to info describing it
-  {-let tileSet :: M.Map TileType TileInfo-}
-      {-tileSet = M.fromList [(Floor    ,InfoTextured  greenTexture True)-}
-                           {-,(Ceiling  ,InfoTextured  blueTexture  True)-}
-                           {-,(WallLeft ,InfoTextured  blueTexture  True)-}
-                           {-,(WallRight,InfoTextured  blackTexture True)-}
-                           {-,(Air      ,InfoInvisible              False)-}
-                           {-]-}
   let tileSize = 64
 
       subjectTile = textureTile playerTexture (P $ V2 0 0) tileSize
@@ -89,21 +81,29 @@ initialGame renderer width height = do
 
   let quit = False
 
+  -- Boundaries the camera should not move past
   let boundaryLeft   = 0
-      boundaryRight  = (tilesWidth tileRows) * tileSize
+      boundaryRight  = tilesWidth tileRows * tileSize
       boundaryTop    = 0
-      boundaryBottom = (tilesHeight tileRows) * tileSize
+      boundaryBottom = tilesHeight tileRows * tileSize
 
-  let thing0 = Thing (textureTile moneyBagTexture (P $ V2 192 256) tileSize) False True (Velocity $ V2 0 0)
-      thing1 = Thing (textureTile moneyBagTexture (P $ V2 128 128) tileSize) False False (Velocity $ V2 0 0)
+  -- all the things!
+  things <- parseThings "R/Things" exTilesetText tileSize
+  let coinThing   = fromJust . M.lookup "coin"  $ things
+      playerThing = fromJust . M.lookup "player" $ things
+
+  -- Specific instances of the things
+  let fallingCoin0  = setMass . moveThingBy (V2 192 256) $ coinThing
+      floatingCoin0 = moveThingBy (V2 128 128) coinThing
+      player0       = moveThingBy (V2 tileSize tileSize) playerThing
 
   let background = fromJust $ mkBackground exampleTiles (Just forestTexture)
-      subject    = Thing (moveR tileSize $ moveD (tileSize * 1) $ subjectTile) True True (Velocity $ V2 0 0)
+      {-subject    = Thing (moveR tileSize $ moveD (tileSize * 1) $ subjectTile) True True (Velocity $ V2 0 0)-}
       gravity    = Force $ V2 0 1
-      stage      = fromJust $ setStage background subject [thing0,thing1] gravity
+      stage      = fromJust $ setStage background player0 [fallingCoin0,floatingCoin0] gravity
 
   --todo pan bottom edge
-  let initialCamera  = panTo (V2 0 ((backgroundHeight background) - height)) $ fromJust
+  let initialCamera  = panTo (V2 0 (backgroundHeight background - height)) $ fromJust
                                    $ mkCamera (V2 width height)
                                               (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
