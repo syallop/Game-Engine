@@ -16,7 +16,9 @@ import Game.Stage
 import Game.Velocity
 import Game.Force
 import Game.Background
+
 import Game.ThingConfigReader
+import Game.TileConfigReader
 
 import SDL
 import Foreign.C.Types
@@ -81,12 +83,8 @@ aliasConfigFmt = ConfigFmt
                   ,DefaultFmt False [])
   ]
 
-type TileSets = Map.Map Text (TileSet Text)
-
-type ThingSets = Map.Map Text Things
-
-parseStage :: FilePath -> TileSets -> Renderer -> IO (Maybe (Stage Text))
-parseStage stagePath tilesets renderer = do
+parseStage :: FilePath -> Renderer -> IO (Maybe (Stage Text))
+parseStage stagePath renderer = do
   res <- parseConfigFile stageConfigFmt (stagePath ++ "/stage")
   case res of
     -- Failed to parse stage file
@@ -127,39 +125,32 @@ parseStage stagePath tilesets renderer = do
                                _ -> error "Didnt parse as claimed"
                         -- empty tileset => use the empty string as a sentinel (parser never returns it)
                         else ""
-                mTileset = Map.lookup tilesetName tilesets
-            case mTileset of
-              -- stage uses a non-existant tileset
+
+            -- Load the stages tileset
+            tileset <- parseTileSet ("R/Tilesets/" ++ unpack tilesetName) renderer
+
+            -- Get any tile aliases defined for this stage
+            aliases    <- parseAliases tileset stagePath
+
+            -- parse all the base things we might need to 'inherit' from
+            baseThings <- parseThings ("R/Things/" ++ unpack baseThingsName) tileset unitSize
+
+            -- parse all the things, and extract one named "player" to use as the subject
+            things     <- parseThingInstances baseThings stagePath
+
+            let mPlayer     = Map.lookup "player" things
+                otherThings = Map.delete "player" things
+
+            case mPlayer of
+              -- No "player" tile
               Nothing
-                -- Because it specified the empty tileset.
-                -- TODO: create an empty tileset and attempt to continue
-                | tilesetName == "" -> return Nothing
-                | otherwise         -> return Nothing
+                -> return Nothing
 
-              -- stage uses a known tileset
-              Just tileset
-                -> do -- Get any tile aliases defined for this stage
-                      aliases    <- parseAliases tileset stagePath
-
-                      -- parse all the base things we might need to 'inherit' from
-                      baseThings <- parseThings ("R/Things/" ++ unpack baseThingsName) tileset unitSize
-
-                      -- parse all the things, and extract one named "player" to use as the subject
-                      things     <- parseThingInstances baseThings stagePath
-
-                      let mPlayer     = Map.lookup "player" things
-                          otherThings = Map.delete "player" things
-
-                      case mPlayer of
-                        -- No "player" tile
-                        Nothing
-                          -> return Nothing
-
-                        Just player
-                          -> do mBackground <- parseBackground stagePath tileset aliases unitSize renderer
-                                case mBackground of
-                                  Nothing         -> return Nothing
-                                  Just background -> return $ setStage background player (Map.elems otherThings) gravity
+              Just player
+                -> do mBackground <- parseBackground stagePath tileset aliases unitSize renderer
+                      case mBackground of
+                        Nothing         -> return Nothing
+                        Just background -> return $ setStage background player (Map.elems otherThings) gravity
   where
     conv :: Int -> CInt
     conv = toEnum . fromEnum

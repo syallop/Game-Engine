@@ -43,18 +43,16 @@ initialGame :: Renderer -> CInt -> CInt -> IO (Game Text)
 initialGame renderer width height = do
   let quit     = False
 
-  -- An example tileset with Text keys
-  exTilesetText :: TileSet Text <- parseTileSet "R/Tilesets/ExampleTileset2" renderer
-  let tilesets = M.fromList [("ExampleTileset2",exTilesetText)]
-
-  stage :: Stage Text <- fromJust <$> parseStage "R/Stages/ExampleStage2" tilesets renderer
-  let tileSize = stageUnitSize stage
+  -- Load a stage
+  stage <- fromJust <$> parseStage "R/Stages/ExampleStage2" renderer
 
   -- Boundaries the camera should not move past
-  let boundaryLeft   = 0
-      boundaryRight  = tilesWidth (_tileRows . stageBackgroundTiles $ stage) * tileSize
+  let tileSize = stageUnitSize stage
+      rows     = (_tileRows . stageBackgroundTiles $ stage)
+      boundaryLeft   = 0
+      boundaryRight  = tilesWidth rows * tileSize
       boundaryTop    = 0
-      boundaryBottom = tilesHeight (_tileRows . stageBackgroundTiles $ stage) * tileSize
+      boundaryBottom = tilesHeight rows * tileSize
 
   --todo pan bottom edge
   let initialCamera  = panTo (V2 0 (backgroundHeight (stageBackground stage) - height)) $ fromJust
