@@ -41,18 +41,23 @@ data Stage t = Stage
   ,_things     :: [Thing]
 
   ,_gravity    :: Force
+  ,_speedLimit :: CInt
   }
   deriving (Eq,Show)
 
 type Subject = Thing
 
 tickStage :: (Show t,Ord t) => Stage t -> Stage t
-tickStage = applyVelocityThings . applyGravityThings . applyVelocitySubject . applyGravitySubject
+tickStage = applyVelocityThings
+          . applyGravityThings
+          . applyVelocitySubject
+          . applySpeedLimitSubject
+          . applyGravitySubject
 
 -- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
 setStage :: Background t -> Subject -> [Thing] -> Force -> Maybe (Stage t)
-setStage b s things gravity = Just $ Stage b s things gravity
+setStage b s things gravity = Just $ Stage b s things gravity 100
 
 -- Move a subject in a direction if they do not collide with the background
 moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp :: (Show t,Ord t) => Stage t -> Maybe (Stage t)
@@ -165,3 +170,8 @@ pushForceSubject force stg
     y = if isPositive $ yComponent force then -1 else 1
 
     isPositive = (>= 0)
+
+-- reduce the subjects velocity if it has exceeded the limit
+applySpeedLimitSubject :: Stage t -> Stage t
+applySpeedLimitSubject stg = stg{_subject = mapVelocity (limitVelocity (_speedLimit stg)) (_subject stg)}
+

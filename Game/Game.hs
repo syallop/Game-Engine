@@ -202,16 +202,17 @@ runCommands = foldr runCommand
 runCommand :: Command -> Game -> Game
 runCommand c g = case c of
   MoveLeft
-    -> g{_stage = fromMaybe (_stage g) $ moveSubjectLeft $ _stage g}
+    -> g{_stage = applyForceSubject (Force $ V2 (-1) 0) $ _stage g}
 
   MoveRight
-    -> g{_stage = fromMaybe (_stage g) $ moveSubjectRight $ _stage g}
+    -> g{_stage = applyForceSubject (Force $ V2 1 0) $ _stage g}
 
   MoveUp
-    -> g{_stage = fromMaybe (_stage g) $ moveSubjectUp $ _stage g}
+    -> g{_stage = applyForceSubject (Force $ V2 (-1) 0) $ _stage g}
 
   MoveDown
-    -> g{_stage = fromMaybe (_stage g) $ moveSubjectDown $ _stage g}
+    -> g{_stage = applyForceSubject (Force $ V2 1 0) $ _stage g}
+
 
 
   PanLeft
