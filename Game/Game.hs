@@ -15,7 +15,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Char
 import Data.List
-import Data.Text as T hiding (replicate,foldr,map,toLower)
+import Data.Text as T hiding (replicate,foldr,map,toLower,length)
 
 import Game.Tile
 import Game.Tiles
@@ -31,35 +31,40 @@ import Game.StageConfigReader
 
 import Debug.Trace
 
-data Game t = Game
+data Game = Game
   {_quit     :: Bool
-  ,_stage    :: Stage t
+
+  ,_stage    :: Stage Text -- the current stage
+  ,_stageIx  :: Int        -- the current stage ix in stages
+  ,_stages   :: Stages     -- all the possible stages
+
   ,_camera   :: Camera
   ,_panSpeed :: CInt
   }
   deriving Show
 
-initialGame :: Renderer -> CInt -> CInt -> IO (Game Text)
+initialGame :: Renderer -> CInt -> CInt -> IO Game
 initialGame renderer width height = do
   let quit     = False
 
   -- Load a stage
-  stage <- fromJust <$> parseStage "R/Stages/ExampleStage2" renderer
+  stages <- parseStages "R/Stages" renderer
+  let stage0     = (!! 0) . M.elems $ stages
 
   -- Boundaries the camera should not move past
-  let tileSize = stageUnitSize stage
-      rows     = (_tileRows . stageBackgroundTiles $ stage)
+  let tileSize = stageUnitSize stage0
+      rows     = (_tileRows . stageBackgroundTiles $ stage0)
       boundaryLeft   = 0
       boundaryRight  = tilesWidth rows * tileSize
       boundaryTop    = 0
       boundaryBottom = tilesHeight rows * tileSize
 
   --todo pan bottom edge
-  let initialCamera  = panTo (V2 0 (backgroundHeight (stageBackground stage) - height)) $ fromJust
+  let initialCamera  = panTo (V2 0 (backgroundHeight (stageBackground stage0) - height)) $ fromJust
                                    $ mkCamera (V2 width height)
                                               (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
-  return $ Game quit stage initialCamera 1
+  return $ Game quit stage0 0 stages initialCamera 1
 
 data Command
   = MoveLeft
@@ -74,6 +79,9 @@ data Command
 
   | IncreasePan
   | DecreasePan
+
+  | PrevStage
+  | NextStage
 
   | TrackSubject
 
@@ -164,9 +172,13 @@ toCommand event = case eventPayload event of
 
                KeycodeComma
                  -> Just DecreasePan
-
                KeycodePeriod
                  -> Just IncreasePan
+
+               KeycodeZ
+                 -> Just PrevStage
+               KeycodeX
+                 -> Just NextStage
 
                KeycodeT
                  -> Just TrackSubject
@@ -183,11 +195,11 @@ toCommand event = case eventPayload event of
     _ -> Nothing
 
 -- Update the Game state by the effect of a string of commands
-runCommands :: Show t => Ord t => Game t -> [Command] -> Game t
+runCommands :: Game -> [Command] -> Game
 runCommands = foldr runCommand
 
 -- Update the Game state by the effect of a single command
-runCommand :: Show t => Ord t => Command -> Game t -> Game t
+runCommand :: Command -> Game -> Game
 runCommand c g = case c of
   MoveLeft
     -> g{_stage = fromMaybe (_stage g) $ moveSubjectLeft $ _stage g}
@@ -201,6 +213,7 @@ runCommand c g = case c of
   MoveDown
     -> g{_stage = fromMaybe (_stage g) $ moveSubjectDown $ _stage g}
 
+
   PanLeft
     -> g{_camera = panLeftBy (_panSpeed g) $ _camera g}
 
@@ -213,11 +226,31 @@ runCommand c g = case c of
   PanUp
     -> g{_camera = panUpBy (_panSpeed g) $ _camera g}
 
+
   IncreasePan
     -> g{_panSpeed = _panSpeed g + 1}
 
   DecreasePan
     -> g{_panSpeed = if (_panSpeed g - 1) < 0 then 0 else _panSpeed g - 1}
+
+
+  NextStage
+    -> do let stageIx  = _stageIx g
+              stageIx' = stageIx + 1
+              stages   = _stages g
+          maybe g (\nextStage -> g{_stage      = nextStage
+                                  ,_stageIx    = stageIx'
+                                  }
+                  ) $ safeIndex (M.elems stages) stageIx'
+
+  PrevStage
+    -> do let stageIx  = _stageIx g
+              stageIx' = stageIx - 1
+              stages   = _stages g
+          maybe g (\nextStage -> g{_stage      = nextStage
+                                  ,_stageIx    = stageIx'
+                                  }
+                  ) $ safeIndex (M.elems stages) stageIx'
 
   Jump
     -> g{_stage = pushForceSubject (Force $ V2 0 (-15)) (_stage g)}
@@ -236,10 +269,12 @@ runCommand c g = case c of
     -> g{_quit = True}
 
 -- Render a step of the game state
-stepGame :: (Show t,Ord t) => (Window,Renderer) -> Game t -> IO (Bool,Game t)
+stepGame :: (Window,Renderer) -> Game -> IO (Bool,Game)
 stepGame (window,renderer) game = if _quit game then return (True,game) else do
   -- Screen to white
   rendererDrawColor renderer $= white
+
+  -- Update the stage
   let stage' = tickStage (_stage game)
       game'  = game{_stage = stage'}
 
@@ -250,7 +285,7 @@ stepGame (window,renderer) game = if _quit game then return (True,game) else do
 
 
 -- Main game loop
-gameLoop :: Show t => Ord t => (Window,Renderer) -> Game t -> IO ()
+gameLoop :: (Window,Renderer) -> Game -> IO ()
 gameLoop (window,renderer) game = do
   -- Parse events into Commands
   events <- pollEvents
@@ -260,13 +295,22 @@ gameLoop (window,renderer) game = do
   -- calculate the next game state by the effect of all the commands
   let nextGame = runCommands game commands
 
+
+
   -- Render the new game state, which returns whether to quit
   (shouldQuit,nextGame') <- stepGame (window,renderer) nextGame
   (if shouldQuit then quitGame else gameLoop) (window,renderer) nextGame'
 
-quitGame :: Ord t => (Window,Renderer) -> Game t -> IO ()
+quitGame :: (Window,Renderer) -> Game -> IO ()
 quitGame (window,renderer) g = do
   destroyRenderer renderer
   destroyWindow window
   quit
+
+safeIndex :: [a] -> Int -> Maybe a
+safeIndex []     _ = Nothing
+safeIndex (x:_)  0 = Just x
+safeIndex (x:xs) n
+  | n < 0     = Nothing
+  | otherwise = safeIndex xs (n-1)
 

@@ -83,9 +83,35 @@ aliasConfigFmt = ConfigFmt
                   ,DefaultFmt False [])
   ]
 
-parseStage :: FilePath -> Renderer -> IO (Maybe (Stage Text))
-parseStage stagePath renderer = do
-  res <- parseConfigFile stageConfigFmt (stagePath ++ "/stage")
+type Stages = Map.Map Text (Stage Text)
+
+-- given a path to a directory of stage directories, load all the stages
+parseStages :: FilePath -> Renderer -> IO Stages
+parseStages stagesPath renderer = do
+  files <- listDirectory stagesPath
+
+  -- Get the directories with a ".stage" extension
+  let stageDirectories = filter ((== "stage") . extension) files
+
+  -- Associate the NAME of all stage directories to their parsed Stage
+  --mStages :: [(Text,Maybe (Stage Text))]
+  mStages <- mapM (\stageDir -> (pack . name $ stageDir,) <$> parseStage stageDir stagesPath renderer) stageDirectories
+
+  -- silently drop all where the stage failed to parse
+  let stages :: [(Text,Stage Text)]
+      stages = foldr (\(name,mStage) acc -> case mStage of
+                                              Nothing    -> acc
+                                              Just stage -> (name,stage):acc
+                     )
+                     []
+                     mStages
+
+  return $ Map.fromList stages
+
+-- given a path to a stage directory, load all its dependencies and assemble the stage.
+parseStage :: FilePath -> FilePath -> Renderer -> IO (Maybe (Stage Text))
+parseStage stageDir stagesPath renderer = do
+  res <- parseConfigFile stageConfigFmt (stagesPath ++ "/" ++ stageDir ++ "/stage")
   case res of
     -- Failed to parse stage file
     Left _
@@ -130,13 +156,13 @@ parseStage stagePath renderer = do
             tileset <- parseTileSet ("R/Tilesets/" ++ unpack tilesetName) renderer
 
             -- Get any tile aliases defined for this stage
-            aliases    <- parseAliases tileset stagePath
+            aliases    <- parseAliases tileset (stagesPath ++ "/" ++ stageDir)
 
             -- parse all the base things we might need to 'inherit' from
             baseThings <- parseThings ("R/Things/" ++ unpack baseThingsName) tileset unitSize
 
             -- parse all the things, and extract one named "player" to use as the subject
-            things     <- parseThingInstances baseThings stagePath
+            things     <- parseThingInstances baseThings (stagesPath ++ "/" ++ stageDir)
 
             let mPlayer     = Map.lookup "player" things
                 otherThings = Map.delete "player" things
@@ -147,7 +173,7 @@ parseStage stagePath renderer = do
                 -> return Nothing
 
               Just player
-                -> do mBackground <- parseBackground stagePath tileset aliases unitSize renderer
+                -> do mBackground <- parseBackground (stagesPath ++ "/" ++ stageDir) tileset aliases unitSize renderer
                       case mBackground of
                         Nothing         -> return Nothing
                         Just background -> return $ setStage background player (Map.elems otherThings) gravity
