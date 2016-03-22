@@ -16,6 +16,7 @@ import Game.Stage
 import Game.Velocity
 import Game.Force
 import Game.Background
+import Game.ThingConfigReader
 
 import SDL
 import Foreign.C.Types
@@ -48,6 +49,10 @@ stageConfigFmt = ConfigFmt
   ,(OptionPairFmt (OptionFmt "unitSize"      [SomeArgFmt ArgFmtInt])
                   (OptionFmt "emptyUnitSize" [])
                   ,DefaultFmt True              [SomeArg $ ArgInt 64])
+
+  ,(OptionPairFmt (OptionFmt "baseThings"      [SomeArgFmt ArgFmtText])
+                  (OptionFmt "emptyBaseThings" [])
+                  ,DefaultFmt False            [])
   ]
 
 thingInstanceConfigFmt :: ConfigFmt
@@ -78,8 +83,10 @@ aliasConfigFmt = ConfigFmt
 
 type TileSets = Map.Map Text (TileSet Text)
 
-parseStage :: FilePath -> TileSets -> Things -> Renderer -> IO (Maybe (Stage Text))
-parseStage stagePath tilesets baseThings renderer = do
+type ThingSets = Map.Map Text Things
+
+parseStage :: FilePath -> TileSets -> Renderer -> IO (Maybe (Stage Text))
+parseStage stagePath tilesets renderer = do
   res <- parseConfigFile stageConfigFmt (stagePath ++ "/stage")
   case res of
     -- Failed to parse stage file
@@ -87,28 +94,39 @@ parseStage stagePath tilesets baseThings renderer = do
       -> return Nothing
 
     Right stageConfig
-      -> do let gravity = if isSet "gravity" stageConfig
-                            -- gravity is set
-                            then case getArgs "gravity" stageConfig of
-                                   [SomeArg (ArgInt x),SomeArg (ArgInt y)]
-                                     -> Force $ V2 (conv x) (conv y)
-                                   _ -> error "Didnt parse as claimed"
-                            -- no gravity => 0 0
-                            else Force $ V2 0 0
+      -> do let gravity
+                    = if isSet "gravity" stageConfig
+                        -- gravity is set
+                        then case getArgs "gravity" stageConfig of
+                               [SomeArg (ArgInt x),SomeArg (ArgInt y)]
+                                 -> Force $ V2 (conv x) (conv y)
+                               _ -> error "Didnt parse as claimed"
+                        -- no gravity => 0 0
+                        else Force $ V2 0 0
 
-            let unitSize = if isSet "unitSize" stageConfig
-                             then case getArgs "unitSize" stageConfig of
-                                    [SomeArg (ArgInt i)] -> conv i
-                                    _ -> error "Didnt parse as claimed"
-                             -- emptyUnitSize
-                             else 1
+            let unitSize
+                    = if isSet "unitSize" stageConfig
+                        then case getArgs "unitSize" stageConfig of
+                               [SomeArg (ArgInt i)] -> conv i
+                               _ -> error "Didnt parse as claimed"
+                        -- emptyUnitSize
+                        else 1
 
-            let tilesetName = if isSet "tileset" stageConfig
-                                then case getArgs "tileset" stageConfig of
-                                       [SomeArg (ArgText n)] -> n
-                                       _ -> error "Didnt parse as claimed"
-                                -- empty tileset => use the empty string as a sentinel (parser never returns it)
-                                else ""
+            let baseThingsName
+                    = if isSet "baseThings" stageConfig
+                        then case getArgs "baseThings" stageConfig of
+                               [SomeArg (ArgText n)] -> n
+                               _ -> error "Didnt parse as claimed"
+                        -- empty base things => use the empty string as a sentinel (parser never returns it)
+                        else ""
+
+            let tilesetName
+                    = if isSet "tileset" stageConfig
+                        then case getArgs "tileset" stageConfig of
+                               [SomeArg (ArgText n)] -> n
+                               _ -> error "Didnt parse as claimed"
+                        -- empty tileset => use the empty string as a sentinel (parser never returns it)
+                        else ""
                 mTileset = Map.lookup tilesetName tilesets
             case mTileset of
               -- stage uses a non-existant tileset
@@ -120,10 +138,14 @@ parseStage stagePath tilesets baseThings renderer = do
 
               -- stage uses a known tileset
               Just tileset
-                -> do aliases     <- parseAliases tileset stagePath
+                -> do -- Get any tile aliases defined for this stage
+                      aliases    <- parseAliases tileset stagePath
+
+                      -- parse all the base things we might need to 'inherit' from
+                      baseThings <- parseThings ("R/Things/" ++ unpack baseThingsName) tileset unitSize
 
                       -- parse all the things, and extract one named "player" to use as the subject
-                      things <- parseThingInstances baseThings stagePath
+                      things     <- parseThingInstances baseThings stagePath
 
                       let mPlayer     = Map.lookup "player" things
                           otherThings = Map.delete "player" things

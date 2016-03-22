@@ -11,6 +11,7 @@ module Game.Stage
   ,stageBackgroundTiles
   ,stageBackgroundImage
   ,stageSubjectTile
+  ,stageUnitSize
 
   ,things
   {-,applyVelocitySubject-}
@@ -100,6 +101,9 @@ stageSubjectTile = _thingTile . _subject
 
 things :: Stage t -> [Thing]
 things = _things
+
+stageUnitSize :: Stage t -> CInt
+stageUnitSize = _tileUnitSize . stageBackgroundTiles
 
 -- Does a tile collide with anything on the stage (EXCEPT the subject)?
 collidesAnything :: (Show t,Ord t) => Stage t -> Tile -> Bool

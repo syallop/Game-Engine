@@ -41,17 +41,14 @@ data Game t = Game
 
 initialGame :: Renderer -> CInt -> CInt -> IO (Game Text)
 initialGame renderer width height = do
-  let tileSize = 64
-      quit     = False
-  forestTexture <- loadTexture renderer "forest.bmp"
+  let quit     = False
 
   -- An example tileset with Text keys
   exTilesetText :: TileSet Text <- parseTileSet "R/Tilesets/ExampleTileset2" renderer
   let tilesets = M.fromList [("ExampleTileset2",exTilesetText)]
 
-  baseThings <- parseThings "R/Things" exTilesetText tileSize
-
-  stage :: Stage Text <- fromJust <$> parseStage "R/Stages/ExampleStage2" tilesets baseThings renderer
+  stage :: Stage Text <- fromJust <$> parseStage "R/Stages/ExampleStage2" tilesets renderer
+  let tileSize = stageUnitSize stage
 
   -- Boundaries the camera should not move past
   let boundaryLeft   = 0
@@ -63,7 +60,6 @@ initialGame renderer width height = do
   let initialCamera  = panTo (V2 0 (backgroundHeight (stageBackground stage) - height)) $ fromJust
                                    $ mkCamera (V2 width height)
                                               (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
-
 
   return $ Game quit stage initialCamera 1
 
