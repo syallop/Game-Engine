@@ -75,20 +75,26 @@ modifiersP = many (modifierP <* space)
 
 modifierP :: Parser Modifier
 modifierP =  isP
+         <|> existsP
          <|> doesP
+         <|> try usingP
          <|> usesP
          <|> try haveP
          <|> hasP
          <|> try notP
          <|> noP
+         <|> setP
   where
-    isP   = (pure $ Right PIs)   <* string' "is"
-    doesP = (pure $ Right PDoes) <* string' "does"
-    usesP = (pure $ Right PUses) <* string' "uses"
-    haveP = (pure $ Right PHave) <* string' "have"
-    hasP  = (pure $ Right PHas)  <* string' "has"
-    notP  = (pure $ Left NNot)   <* string' "not"
-    noP   = (pure $ Left NNo)    <* string' "no"
+    isP     = (pure $ Right PIs)     <* string' "is"
+    existsP = (pure $ Right PExists) <* string' "exists"
+    doesP   = (pure $ Right PDoes)   <* string' "does"
+    usesP   = (pure $ Right PUses)   <* string' "uses"
+    usingP  = (pure $ Right PUsing)  <* string' "using"
+    haveP   = (pure $ Right PHave)   <* string' "have"
+    hasP    = (pure $ Right PHas)    <* string' "has"
+    setP    = (pure $ Right PSet)    <* string' "set"
+    notP    = (pure $ Left NNot)     <* string' "not"
+    noP     = (pure $ Left NNo)      <* string' "no"
 
 someArgsP :: [SomeArgFmt] -> Parser [SomeArg]
 someArgsP []                        = pure []

@@ -16,6 +16,7 @@ module Game.Thing
   ,collidesThings
 
   ,mapVelocity
+  ,setVelocity
   ,applyForceThing
 
   ,Things
@@ -142,6 +143,9 @@ collidesThings t0 = any (collidesThing t0)
 
 mapVelocity :: (Velocity -> Velocity) -> Thing -> Thing
 mapVelocity f thing = thing{_velocity = f . _velocity $ thing}
+
+setVelocity :: Velocity -> Thing -> Thing
+setVelocity v thing = thing{_velocity = v}
 
 {- Utils -}
 

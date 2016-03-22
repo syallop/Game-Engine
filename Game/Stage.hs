@@ -7,6 +7,7 @@ module Game.Stage
   ,mapSubjectTile
   ,setSubjectTile
 
+  ,stageBackground
   ,stageBackgroundTiles
   ,stageBackgroundImage
   ,stageSubjectTile
@@ -84,6 +85,9 @@ setSubjectTile tile stg =
         || collidesThings tile (things stg)
           then Nothing
           else Just $ stg{_subject = subject{_thingTile = tile}}
+
+stageBackground :: Stage t -> Background t
+stageBackground = _background
 
 stageBackgroundTiles :: Stage t -> Tiles t
 stageBackgroundTiles = backgroundTiles . _background

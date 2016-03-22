@@ -9,6 +9,7 @@ import Linear (V2(..),V4(..))
 import Linear.Affine (Point(..))
 import Foreign.C.Types
 import GHC.Word
+import Control.Applicative
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -26,88 +27,45 @@ import Game.Velocity
 import Game.Force
 import Game.TileConfigReader
 import Game.ThingConfigReader
+import Game.StageConfigReader
 
 import Debug.Trace
 
 data Game t = Game
-  {_quit   :: Bool
-  ,_stage  :: Stage t
-  ,_camera :: Camera
+  {_quit     :: Bool
+  ,_stage    :: Stage t
+  ,_camera   :: Camera
+  ,_panSpeed :: CInt
   }
   deriving Show
 
-initialGame :: Renderer -> CInt -> CInt -> IO (Game TileType)
+initialGame :: Renderer -> CInt -> CInt -> IO (Game Text)
 initialGame renderer width height = do
-  -- Grab some textures..
-  [ redTexture
-   ,greenTexture
-   ,blueTexture
-   ,blackTexture
-   ,whiteTexture
-   ,playerTexture
-   ,yellowCircleTexture
-   ,moneyBagTexture
-   ,forestTexture
-   ] <- mapM (loadTexture renderer)
-                   ["red.bmp"
-                   ,"green.bmp"
-                   ,"blue.bmp"
-                   ,"black.bmp"
-                   ,"white.bmp"
-                   ,"playerT.bmp"
-                   ,"yellowCircle.bmp"
-                   ,"moneyBag.bmp"
-                   ,"forest.bmp"
-                   ]
+  let tileSize = 64
+      quit     = False
+  forestTexture <- loadTexture renderer "forest.bmp"
 
   -- An example tileset with Text keys
-  {-exTilesetText :: TileSet Text <- parseTileSet "R/Tilesets/ExampleTileset1" renderer-}
   exTilesetText :: TileSet Text <- parseTileSet "R/Tilesets/ExampleTileset2" renderer
+  let tilesets = M.fromList [("ExampleTileset2",exTilesetText)]
 
-  -- Convert the example tileset to TileType keys, under the assumption that TileType must
-  -- have the same ordering and naming...
-  let exTileset :: TileSet TileType
-      exTileset = M.mapKeysMonotonic toTileType exTilesetText
-  let tileSize = 64
+  baseThings <- parseThings "R/Things" exTilesetText tileSize
 
-      subjectTile = textureTile playerTexture (P $ V2 0 0) tileSize
-
-      line       = Row $ WallLeft : (replicate 10 Air) ++ [WallRight]
-      aboveBottomLine = Row $ WallLeft : Air : Air : Air : Air : Air      : Air : Air : Floor : Air : Air : WallRight : []
-      bottomLine      = Row $ WallLeft : Air : Air : Air : Air : WallLeft : Air : Air : Floor : Air : Air : WallRight : []
-      tileRows = Rows $ (replicate 5 line) ++ [aboveBottomLine,bottomLine] ++ [Row $ replicate 12 Floor]
-      exampleTiles = fromJust $ mkTiles tileRows exTileset tileSize
-
-
-  let quit = False
+  stage :: Stage Text <- fromJust <$> parseStage "R/Stages/ExampleStage2" tilesets baseThings renderer
 
   -- Boundaries the camera should not move past
   let boundaryLeft   = 0
-      boundaryRight  = tilesWidth tileRows * tileSize
+      boundaryRight  = tilesWidth (_tileRows . stageBackgroundTiles $ stage) * tileSize
       boundaryTop    = 0
-      boundaryBottom = tilesHeight tileRows * tileSize
-
-  -- all the things!
-  things <- parseThings "R/Things" exTilesetText tileSize
-  let coinThing   = fromJust . M.lookup "coin"  $ things
-      playerThing = fromJust . M.lookup "player" $ things
-
-  -- Specific instances of the things
-  let fallingCoin0  = setMass . moveThingBy (V2 192 256) $ coinThing
-      floatingCoin0 = moveThingBy (V2 128 128) coinThing
-      player0       = moveThingBy (V2 tileSize tileSize) playerThing
-
-  let background = fromJust $ mkBackground exampleTiles (Just forestTexture)
-      {-subject    = Thing (moveR tileSize $ moveD (tileSize * 1) $ subjectTile) True True (Velocity $ V2 0 0)-}
-      gravity    = Force $ V2 0 1
-      stage      = fromJust $ setStage background player0 [fallingCoin0,floatingCoin0] gravity
+      boundaryBottom = tilesHeight (_tileRows . stageBackgroundTiles $ stage) * tileSize
 
   --todo pan bottom edge
-  let initialCamera  = panTo (V2 0 (backgroundHeight background - height)) $ fromJust
+  let initialCamera  = panTo (V2 0 (backgroundHeight (stageBackground stage) - height)) $ fromJust
                                    $ mkCamera (V2 width height)
                                               (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
-  return $ Game quit stage initialCamera
+
+  return $ Game quit stage initialCamera 1
 
 data Command
   = MoveLeft
@@ -119,6 +77,9 @@ data Command
   | PanRight
   | PanUp
   | PanDown
+
+  | IncreasePan
+  | DecreasePan
 
   | TrackSubject
 
@@ -154,7 +115,7 @@ pattern Floor     = Green
 pattern Ceiling   = Blue
 pattern WallLeft  = Blue
 pattern WallRight = Black
-pattern Air      = EmptyTile
+pattern Air       = EmptyTile
 
 -- Set up the window, etc and the initial game
 initializeWindow :: CInt -> CInt -> IO (Window,Renderer)
@@ -189,21 +150,41 @@ toCommand event = case eventPayload event of
         |  keyboardEventKeyMotion keyboardEvent == Pressed
          -> case keysymKeycode (keyboardEventKeysym keyboardEvent) of
 
-               KeycodeLeft  -> Just PanLeft
-               KeycodeRight -> Just PanRight
-               KeycodeUp    -> Just PanUp
-               KeycodeDown  -> Just PanDown
+               KeycodeLeft
+                 -> Just PanLeft
+               KeycodeRight
+                 -> Just PanRight
+               KeycodeUp
+                 -> Just PanUp
+               KeycodeDown
+                 -> Just PanDown
 
-               KeycodeW     -> Just MoveUp
-               KeycodeS     -> Just MoveDown
-               KeycodeA     -> Just MoveLeft
-               KeycodeD     -> Just MoveRight
+               KeycodeW
+                 -> Just MoveUp
+               KeycodeS
+                 -> Just MoveDown
+               KeycodeA
+                 -> Just MoveLeft
+               KeycodeD
+                 -> Just MoveRight
 
-               KeycodeT     -> Just TrackSubject
+               KeycodeComma
+                 -> Just DecreasePan
 
-               KeycodeSpace -> Just Jump
-               KeycodeE     -> Just Shoot
-               KeycodeQ     -> Just Quit
+               KeycodePeriod
+                 -> Just IncreasePan
+
+               KeycodeT
+                 -> Just TrackSubject
+
+               KeycodeSpace
+                 -> Just Jump
+
+               KeycodeE
+                 -> Just Shoot
+
+               KeycodeQ
+                 -> Just Quit
                _  -> Nothing
     _ -> Nothing
 
@@ -227,16 +208,22 @@ runCommand c g = case c of
     -> g{_stage = fromMaybe (_stage g) $ moveSubjectDown $ _stage g}
 
   PanLeft
-    -> g{_camera = panLeft $ _camera g}
+    -> g{_camera = panLeftBy (_panSpeed g) $ _camera g}
 
   PanRight
-    -> g{_camera = panRight $ _camera g}
+    -> g{_camera = panRightBy (_panSpeed g) $ _camera g}
 
   PanDown
-    -> g{_camera = panDown $ _camera g}
+    -> g{_camera = panDownBy (_panSpeed g) $ _camera g}
 
   PanUp
-    -> g{_camera = panUp $ _camera g}
+    -> g{_camera = panUpBy (_panSpeed g) $ _camera g}
+
+  IncreasePan
+    -> g{_panSpeed = _panSpeed g + 1}
+
+  DecreasePan
+    -> g{_panSpeed = if (_panSpeed g - 1) < 0 then 0 else _panSpeed g - 1}
 
   Jump
     -> g{_stage = pushForceSubject (Force $ V2 0 (-15)) (_stage g)}

@@ -15,6 +15,9 @@ data PositiveModifier
   | PHave
   | PDoes
   | PUses
+  | PUsing
+  | PSet
+  | PExists
   deriving (Show,Eq)
 
 -- Either a negative or a positive modifier.
