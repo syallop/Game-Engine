@@ -180,6 +180,8 @@ applySpeedLimitSubject stg = stg{_subject = mapVelocity (limitVelocity (_speedLi
 applyFrictionSubject :: (Show t,Ord t) => Stage t -> Stage t
 applyFrictionSubject stg
   -- Standing on a tile
-  | collidesStageBackground stg (thingTile . moveThingBy (V2 0 1) . _subject $ stg) = applyForceSubject (opposeX 1 (_velocity . _subject $ stg)) stg
-  | otherwise = stg
+  | collidesStageBackground stg (thingTile . moveThingBy (V2 0 1) . _subject $ stg) = applyForceSubject (opposeX 2 (_velocity . _subject $ stg)) stg
+
+  -- Less air friction
+  | otherwise = applyForceSubject (opposeX 1 (_velocity . _subject $ stg)) stg
 
