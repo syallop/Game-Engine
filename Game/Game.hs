@@ -32,14 +32,17 @@ import Game.StageConfigReader
 import Debug.Trace
 
 data Game = Game
-  {_quit     :: Bool
+  {_quit      :: Bool
 
-  ,_stage    :: Stage Text -- the current stage
-  ,_stageIx  :: Int        -- the current stage ix in stages
-  ,_stages   :: Stages     -- all the possible stages
+  ,_stage     :: Stage Text -- the current stage
+  ,_stageIx   :: Int        -- the current stage ix in stages
+  ,_stages    :: Stages     -- all the possible stages
 
-  ,_camera   :: Camera
-  ,_panSpeed :: CInt
+  ,_camera    :: Camera
+  ,_panSpeed  :: CInt
+
+  ,_lastTicks :: Word32 -- Number of ticks since sdl initialisation, as of the last game step
+  ,_tickDelta :: CInt   -- Number of tenths of a tick since last check
   }
   deriving Show
 
@@ -64,7 +67,7 @@ initialGame renderer width height = do
                                    $ mkCamera (V2 width height)
                                               (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
-  return $ Game quit stage0 0 stages initialCamera 1
+  return $ Game quit stage0 0 stages initialCamera 1 0 1
 
 data Command
   = MoveLeft
@@ -136,7 +139,6 @@ initializeWindow width height = do
   rendererDrawColor renderer $= V4 maxBound maxBound maxBound maxBound
   return (window,renderer)
 
-
 main :: IO ()
 main = do
   let w = 640
@@ -144,55 +146,6 @@ main = do
   (window,renderer) <- initializeWindow w h
   game <- initialGame renderer w h
   gameLoop (window,renderer) game
-
-toCommand :: Event -> Maybe Command
-toCommand event = case eventPayload event of
-
-    KeyboardEvent keyboardEvent
-        |  keyboardEventKeyMotion keyboardEvent == Pressed
-         -> case keysymKeycode (keyboardEventKeysym keyboardEvent) of
-
-               KeycodeLeft
-                 -> Just PanLeft
-               KeycodeRight
-                 -> Just PanRight
-               KeycodeUp
-                 -> Just PanUp
-               KeycodeDown
-                 -> Just PanDown
-
-               KeycodeW
-                 -> Just MoveUp
-               KeycodeS
-                 -> Just MoveDown
-               KeycodeA
-                 -> Just MoveLeft
-               KeycodeD
-                 -> Just MoveRight
-
-               KeycodeComma
-                 -> Just DecreasePan
-               KeycodePeriod
-                 -> Just IncreasePan
-
-               KeycodeZ
-                 -> Just PrevStage
-               KeycodeX
-                 -> Just NextStage
-
-               KeycodeT
-                 -> Just TrackSubject
-
-               KeycodeSpace
-                 -> Just Jump
-
-               KeycodeE
-                 -> Just Shoot
-
-               KeycodeQ
-                 -> Just Quit
-               _  -> Nothing
-    _ -> Nothing
 
 -- Update the Game state by the effect of a string of commands
 runCommands :: Game -> [Command] -> Game
@@ -202,16 +155,16 @@ runCommands = foldr runCommand
 runCommand :: Command -> Game -> Game
 runCommand c g = case c of
   MoveLeft
-    -> g{_stage = applyForceSubject (Force $ V2 (-2) 0) $ _stage g}
+    -> g{_stage = applyForceSubject (Force $ V2 (-1 * _tickDelta g) 0) $ _stage g}
 
   MoveRight
-    -> g{_stage = applyForceSubject (Force $ V2 2 0) $ _stage g}
+    -> g{_stage = applyForceSubject (Force $ V2 (1 * _tickDelta g) 0) $ _stage g}
 
   MoveUp
-    -> g{_stage = applyForceSubject (Force $ V2 (-1) 0) $ _stage g}
+    -> g{_stage = applyForceSubject (Force $ V2 0 0) $ _stage g}
 
   MoveDown
-    -> g{_stage = applyForceSubject (Force $ V2 1 0) $ _stage g}
+    -> g{_stage = applyForceSubject (Force $ V2 0 0) $ _stage g}
 
 
 
@@ -235,15 +188,6 @@ runCommand c g = case c of
     -> g{_panSpeed = if (_panSpeed g - 1) < 0 then 0 else _panSpeed g - 1}
 
 
-  NextStage
-    -> do let stageIx  = _stageIx g
-              stageIx' = stageIx + 1
-              stages   = _stages g
-          maybe g (\nextStage -> g{_stage      = nextStage
-                                  ,_stageIx    = stageIx'
-                                  }
-                  ) $ safeIndex (M.elems stages) stageIx'
-
   PrevStage
     -> do let stageIx  = _stageIx g
               stageIx' = stageIx - 1
@@ -253,8 +197,18 @@ runCommand c g = case c of
                                   }
                   ) $ safeIndex (M.elems stages) stageIx'
 
+  NextStage
+    -> do let stageIx  = _stageIx g
+              stageIx' = stageIx + 1
+              stages   = _stages g
+          maybe g (\nextStage -> g{_stage      = nextStage
+                                  ,_stageIx    = stageIx'
+                                  }
+                  ) $ safeIndex (M.elems stages) stageIx'
+
+
   Jump
-    -> g{_stage = pushForceSubject (Force $ V2 0 (-15)) (_stage g)}
+    -> g{_stage = pushForceSubject (Force $ V2 0 (-10)) (_stage g)}
 
 
   TrackSubject
@@ -276,7 +230,7 @@ stepGame (window,renderer) game = if _quit game then return (True,game) else do
   rendererDrawColor renderer $= white
 
   -- Update the stage
-  let stage' = tickStage (_stage game)
+  let stage' = tickStage (_tickDelta game) (_stage game)
       game'  = game{_stage = stage'}
 
   -- Shoot a frame of the game
@@ -287,20 +241,68 @@ stepGame (window,renderer) game = if _quit game then return (True,game) else do
 
 -- Main game loop
 gameLoop :: (Window,Renderer) -> Game -> IO ()
-gameLoop (window,renderer) game = do
-  -- Parse events into Commands
-  events <- pollEvents
-  let commands :: [Command]
-      commands = nub $ mapMaybe toCommand events
+gameLoop (window,renderer) game0 = do
+  -- Get commands as the result of keydowns
+  commands <- keyboardCommands
+  game1 <- tickDelta game0
 
   -- calculate the next game state by the effect of all the commands
-  let nextGame = runCommands game commands
-
-
+  let game2 = runCommands game1 commands
 
   -- Render the new game state, which returns whether to quit
-  (shouldQuit,nextGame') <- stepGame (window,renderer) nextGame
-  (if shouldQuit then quitGame else gameLoop) (window,renderer) nextGame'
+  (shouldQuit,game3) <- stepGame (window,renderer) game2
+  (if shouldQuit then quitGame else gameLoop) (window,renderer) game3
+
+-- Commands to be issued as long as a key is still down
+keydownCommands :: M.Map Scancode Command
+keydownCommands = M.fromList
+  [(ScancodeLeft ,PanLeft)
+  ,(ScancodeRight,PanRight)
+  ,(ScancodeUp   ,PanUp)
+  ,(ScancodeDown ,PanDown)
+
+  ,(ScancodeW,MoveUp)
+  ,(ScancodeS,MoveDown)
+  ,(ScancodeA,MoveLeft)
+  ,(ScancodeD,MoveRight)
+
+  ,(ScancodeE ,Shoot)
+  ]
+
+-- Commands to be issued when a key is pressed
+keypressCommands :: M.Map Keycode Command
+keypressCommands = M.fromList
+  [(KeycodeZ,PrevStage)
+  ,(KeycodeX,NextStage)
+
+  ,(KeycodeComma ,DecreasePan)
+  ,(KeycodePeriod,IncreasePan)
+
+  ,(KeycodeSpace,Jump)
+
+  ,(KeycodeQ,Quit)
+
+  ,(KeycodeT,TrackSubject)
+  ]
+
+keyboardCommands :: IO [Command]
+keyboardCommands = do
+  pumpEvents
+  f <- getKeyboardState
+  let heldCommands = mapMaybe (\scancode -> if f scancode then M.lookup scancode keydownCommands else Nothing) $ M.keys keydownCommands
+
+  events <- pollEvents
+  let downCommands = mapMaybe (\event -> case eventPayload event of
+                                           KeyboardEvent kEv
+                                             | (keyboardEventKeyMotion kEv == Pressed) && (keyboardEventRepeat kEv == False)
+                                              ->  M.lookup (keysymKeycode . keyboardEventKeysym $ kEv) keypressCommands
+
+                                           _ -> Nothing
+                              )
+                              events
+
+  return $ nub $ heldCommands ++ downCommands
+
 
 quitGame :: (Window,Renderer) -> Game -> IO ()
 quitGame (window,renderer) g = do
@@ -314,4 +316,16 @@ safeIndex (x:_)  0 = Just x
 safeIndex (x:xs) n
   | n < 0     = Nothing
   | otherwise = safeIndex xs (n-1)
+
+tickDelta :: Game -> IO Game
+tickDelta g = do
+  total <- ticks
+  let last  = _lastTicks g
+      delta = total - last
+  return $ g{_lastTicks = total
+            ,_tickDelta = (word32ToCInt delta) `div` 10
+            }
+
+word32ToCInt :: Word32 -> CInt
+word32ToCInt = toEnum . fromEnum
 

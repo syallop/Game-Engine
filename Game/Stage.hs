@@ -47,18 +47,19 @@ data Stage t = Stage
 
 type Subject = Thing
 
-tickStage :: (Show t,Ord t) => Stage t -> Stage t
-tickStage = applyVelocityThings
-          . applyGravityThings
-          . applyVelocitySubject
-          . applySpeedLimitSubject
-          . applyFrictionSubject
-          . applyGravitySubject
+tickStage :: (Show t,Ord t) => CInt -> Stage t -> Stage t
+tickStage dTicks
+  = applyVelocityThings dTicks
+  . applyGravityThings
+  . applyVelocitySubject dTicks
+  . applySpeedLimitSubject
+  . applyFrictionSubject
+  . applyGravitySubject
 
 -- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
 setStage :: Background t -> Subject -> [Thing] -> Force -> Maybe (Stage t)
-setStage b s things gravity = Just $ Stage b s things gravity 100
+setStage b s things gravity = Just $ Stage b s things gravity 20
 
 -- Move a subject in a direction if they do not collide with the background
 moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp :: (Show t,Ord t) => Stage t -> Maybe (Stage t)
@@ -125,9 +126,9 @@ collidesStageThings stg tile = collidesThings tile (_things stg)
 -- Apply velocity to the subject by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
 -- Checks collision with the background and other things.
-applyVelocitySubject :: (Show t,Ord t) => Stage t -> Stage t
-applyVelocitySubject stg =
-  stg{_subject = tryMoveThingBy (_vel . _velocity . _subject $ stg)
+applyVelocitySubject :: (Show t,Ord t) => CInt -> Stage t -> Stage t
+applyVelocitySubject ticks stg =
+  stg{_subject = tryMoveThingBy ((* (V2 ticks ticks)) . _vel . _velocity . _subject $ stg)
                                 (_subject stg)
                                 (not . collidesAnything stg)
      }
@@ -135,13 +136,13 @@ applyVelocitySubject stg =
 -- Apply velocity to the things by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
 -- Only checks collision with the background, not the subject or other things.
-applyVelocityThings :: (Show t,Ord t) => Stage t -> Stage t
-applyVelocityThings stg =
+applyVelocityThings :: (Show t,Ord t) => CInt -> Stage t -> Stage t
+applyVelocityThings ticks stg =
   stg{_things = map applyVelocityThing (_things stg)
      }
   where
     applyVelocityThing :: Thing -> Thing
-    applyVelocityThing thing = tryMoveThingBy (_vel . _velocity $ thing) thing (not . collidesStageBackground stg)
+    applyVelocityThing thing = tryMoveThingBy ((* (V2 ticks ticks)) . _vel . _velocity $ thing) thing (not . collidesStageBackground stg)
 
 -- Apply acceleration due to gravity to the subject
 applyGravitySubject :: Stage t -> Stage t

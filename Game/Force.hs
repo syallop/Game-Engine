@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Game.Force
   (Force(..)
   ,sumForce
@@ -17,7 +18,7 @@ import Data.Coerce
 import Game.Velocity
 
 newtype Force = Force {_force :: V2 CInt}
-  deriving (Show,Eq)
+  deriving (Show,Eq,Num)
 
 sumForce :: [Force] -> Force
 sumForce = foldr (\f g -> Force $ (coerce f) + (coerce g)) (Force $ V2 0 0)

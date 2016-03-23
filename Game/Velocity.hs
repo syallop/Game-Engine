@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Game.Velocity
   (Velocity(..)
   ,applyVelocity
@@ -16,7 +17,7 @@ import Linear
 import Foreign.C.Types
 
 newtype Velocity = Velocity {_vel :: V2 CInt}
-  deriving (Show,Eq)
+  deriving (Show,Eq,Num)
 
 applyVelocity :: Velocity -> V2 CInt -> V2 CInt
 applyVelocity (Velocity (V2 dX dY)) (V2 x y) = V2 (x + dX) (y + dY)
