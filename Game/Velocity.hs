@@ -30,8 +30,8 @@ nullY (Velocity (V2 x _)) = Velocity (V2 x 0)
 
 -- Limit the magnitude of the velocity in either direction by a positive amount
 -- TODO: Maybe limit absolute velocity. This method means you can travel faster in a diagonal
-limitVelocity :: CInt -> Velocity -> Velocity
-limitVelocity l (Velocity (V2 x y)) = Velocity $ V2 (limit l x) (limit l y)
+limitVelocity :: V2 CInt -> Velocity -> Velocity
+limitVelocity (V2 lx ly) (Velocity (V2 vx vy)) = Velocity $ V2 (limit lx vx) (limit ly vy)
 
 limit :: CInt -> CInt -> CInt
 limit l x
