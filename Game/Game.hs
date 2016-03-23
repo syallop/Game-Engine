@@ -63,9 +63,10 @@ initialGame renderer width height = do
       boundaryBottom = tilesHeight rows * tileSize
 
   --todo pan bottom edge
-  let initialCamera  = panTo (V2 0 (backgroundHeight (stageBackground stage0) - height)) $ fromJust
-                                   $ mkCamera (V2 width height)
-                                              (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
+  let panSubjectTL   = panTo (V2 0 (backgroundHeight (stageBackground stage0) - height))
+  let initialCamera  = panSubjectTL $ fromJust
+                                    $ mkCamera (V2 width height)
+                                               (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
   return $ Game quit stage0 0 stages initialCamera 1 0 1
 
@@ -208,7 +209,7 @@ runCommand c g = case c of
 
 
   Jump
-    -> g{_stage = pushForceSubject (Force $ V2 0 (-10)) (_stage g)}
+    -> g{_stage = pushForceSubject (Force $ V2 0 (-12)) (_stage g)}
 
 
   TrackSubject

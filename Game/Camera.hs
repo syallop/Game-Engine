@@ -161,7 +161,7 @@ closestPanY y c =
 -- - frame dimensions
 -- - absolute boundaries
 mkCamera :: V2 CInt -> V4 CInt -> Maybe Camera
-mkCamera (V2 width height) (V4 bL bR bU bD) = Just $ Camera 0 0 width height bL bR bU bD False
+mkCamera (V2 width height) (V4 bL bR bU bD) = Just $ Camera 0 0 width height bL bR bU bD True
 
 -- shoot a frame of the scene, the background, the subject, any actors and props adjusted
 -- for the cameras pan
@@ -173,7 +173,11 @@ shoot c renderer stage = do
   let subjectTile = stageSubjectTile stage
   let subjectX = posX subjectTile
       subjectY = posY subjectTile
-      c' = if _trackSubject c then panTowards (V2 subjectX subjectY) c else c
+      c' = if _trackSubject c
+             then panLeftBy (3 * stageUnitSize stage)
+                  . panUpBy (frameHeight c - ((3 * stageUnitSize stage) + (radius . stageSubjectTile $ stage)) )
+                  . panTowards (V2 subjectX subjectY) $ c
+             else c
 
 
   -- render a possible background image

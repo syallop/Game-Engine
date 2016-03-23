@@ -59,7 +59,7 @@ tickStage dTicks
 -- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
 setStage :: Background t -> Subject -> [Thing] -> Force -> Maybe (Stage t)
-setStage b s things gravity = Just $ Stage b s things gravity (V2 4 20)
+setStage b s things gravity = Just $ Stage b s things gravity (V2 5 20)
 
 -- Move a subject in a direction if they do not collide with the background
 moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp :: (Show t,Ord t) => Stage t -> Maybe (Stage t)
