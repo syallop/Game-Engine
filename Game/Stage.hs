@@ -52,6 +52,7 @@ tickStage = applyVelocityThings
           . applyGravityThings
           . applyVelocitySubject
           . applySpeedLimitSubject
+          . applyFrictionSubject
           . applyGravitySubject
 
 -- Set a stage with a background and a subject, and a list of things
@@ -174,4 +175,10 @@ pushForceSubject force stg
 -- reduce the subjects velocity if it has exceeded the limit
 applySpeedLimitSubject :: Stage t -> Stage t
 applySpeedLimitSubject stg = stg{_subject = mapVelocity (limitVelocity (_speedLimit stg)) (_subject stg)}
+
+applyFrictionSubject :: (Show t,Ord t) => Stage t -> Stage t
+applyFrictionSubject stg
+  -- Standing on a tile
+  | collidesStageBackground stg (thingTile . moveThingBy (V2 0 1) . _subject $ stg) = applyForceSubject (opposeX 1 (_velocity . _subject $ stg)) stg
+  | otherwise = stg
 

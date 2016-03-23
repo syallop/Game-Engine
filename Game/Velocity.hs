@@ -4,6 +4,11 @@ module Game.Velocity
   ,nullX
   ,nullY
   ,limitVelocity
+
+  ,movingLeft
+  ,movingRight
+  ,movingDown
+  ,movingUp
   )
   where
 
@@ -31,4 +36,10 @@ limit :: CInt -> CInt -> CInt
 limit l x
   | x < 0     = if x < (-1 * l) then (-1 * l) else x
   | otherwise = if x < l then x else l
+
+movingLeft,movingRight,movingDown,movingUp :: Velocity -> Bool
+movingLeft  (Velocity (V2 x y)) = x < 0
+movingRight (Velocity (V2 x y)) = 0 < x
+movingDown  (Velocity (V2 x y)) = 0 < y
+movingUp    (Velocity (V2 x y)) = y < 0
 
