@@ -110,7 +110,11 @@ argP argFmt = case argFmt of
   ArgFmtText -> argTextP
 
 argIntP :: Parser (Arg Int)
-argIntP = ArgInt . read <$> some digitChar
+argIntP = do
+  mNegative <- optional (string "-")
+  ds        <- some digitChar
+  let i = read ds -- should never fail on input from parser
+  return $ ArgInt $ if isJust mNegative then -1 * i else i
 
 argBoolP,trueP,falseP :: Parser (Arg Bool)
 argBoolP = trueP <|> falseP
