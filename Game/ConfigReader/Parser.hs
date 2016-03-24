@@ -20,6 +20,8 @@ import Data.List hiding (takeWhile)
 
 import Control.Applicative
 
+import Debug.Trace
+
 configP :: ConfigFmt -> Parser Config
 configP configFmt = do
   options <- many ((choice $ map (try . optionP . fst) $ _configFmtOptions configFmt) <* newline)
@@ -105,16 +107,34 @@ someArgP argFmt = SomeArg <$> argP argFmt
 
 argP :: ArgFmt t -> Parser (Arg t)
 argP argFmt = case argFmt of
-  ArgFmtInt  -> argIntP
-  ArgFmtBool -> argBoolP
-  ArgFmtText -> argTextP
+  ArgFmtInt   -> argIntP
+  ArgFmtFloat -> argFloatP
+  ArgFmtChar  -> argCharP
+  ArgFmtBool  -> argBoolP
+  ArgFmtText  -> argTextP
 
 argIntP :: Parser (Arg Int)
-argIntP = do
+argIntP = ArgInt <$> intP
+
+naturalP :: Parser Int
+naturalP = read <$> some digitChar
+
+intP :: Parser Int
+intP = do
   mNegative <- optional (string "-")
-  ds        <- some digitChar
-  let i = read ds -- should never fail on input from parser
-  return $ ArgInt $ if isJust mNegative then -1 * i else i
+  n         <- naturalP
+  return $ if isJust mNegative then -1 * n else n
+
+argFloatP :: Parser (Arg Float)
+argFloatP = do
+  i  <- intP
+  mN <- optional (string "." *> naturalP)
+  return $ ArgFloat $ read $ case mN of
+    Nothing -> show i
+    Just d  -> show i ++ "." ++ show d
+
+argCharP :: Parser (Arg Char)
+argCharP = ArgChar <$> anyChar
 
 argBoolP,trueP,falseP :: Parser (Arg Bool)
 argBoolP = trueP <|> falseP
