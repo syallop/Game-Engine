@@ -70,6 +70,21 @@ initialGame renderer width height = do
 
   return $ Game quit stage0 0 stages initialCamera 1 0 1
 
+-- Infer the boundaries of the current stage (as the most exteme edges of the background tiles)
+-- and set it.
+inferCameraBoundaries :: Game -> Game
+inferCameraBoundaries g =
+  let stage    = _stage g
+      tileSize = stageUnitSize stage
+      rows     = _tileRows . stageBackgroundTiles $ stage
+      l = 0
+      r = tilesWidth rows * tileSize
+      u = 0
+      d = tilesHeight rows * tileSize
+      boundaries = V4 l r u d
+    in g{_camera = setBoundaries boundaries $ _camera g}
+
+
 data Command
   = MoveLeft
   | MoveRight
@@ -94,34 +109,11 @@ data Command
   | Quit
   deriving (Show,Eq)
 
-data TileType
-  = Aperture
-  | Black
-  | Blue
-  | EmptyTile
-  | Green
-  | MoneyBag
-  | Red
-  | White
-  | YellowCircle
-  deriving (Eq,Ord,Show,Enum)
-
--- Lookup a Texts corresponding TileType.
--- Partial. Assuming the TileType is named identically.
-toTileType :: Text -> TileType
-toTileType t = fromJust . lookup t . map (\tt -> (lowerCase . pack . show $ tt,tt)) $ enumFrom Aperture
-
 -- Lower the case of the first character of some Text
 lowerCase :: Text -> Text
 lowerCase t = case uncons t of
   Nothing     -> t
   Just (c,cs) -> cons (toLower c) cs
-
-pattern Floor     = Green
-pattern Ceiling   = Blue
-pattern WallLeft  = Blue
-pattern WallRight = Black
-pattern Air       = EmptyTile
 
 -- Set up the window, etc and the initial game
 initializeWindow :: CInt -> CInt -> IO (Window,Renderer)
@@ -190,22 +182,22 @@ runCommand c g = case c of
 
 
   PrevStage
-    -> do let stageIx  = _stageIx g
-              stageIx' = stageIx - 1
-              stages   = _stages g
-          maybe g (\nextStage -> g{_stage      = nextStage
-                                  ,_stageIx    = stageIx'
-                                  }
-                  ) $ safeIndex (M.elems stages) stageIx'
+    -> let stageIx  = _stageIx g
+           stageIx' = stageIx - 1
+           stages   = _stages g
+          in inferCameraBoundaries $ maybe g (\nextStage -> g{_stage      = nextStage
+                                                             ,_stageIx    = stageIx'
+                                                             }
+                                             ) $ safeIndex (M.elems stages) stageIx'
 
   NextStage
-    -> do let stageIx  = _stageIx g
-              stageIx' = stageIx + 1
-              stages   = _stages g
-          maybe g (\nextStage -> g{_stage      = nextStage
-                                  ,_stageIx    = stageIx'
-                                  }
-                  ) $ safeIndex (M.elems stages) stageIx'
+    -> let stageIx  = _stageIx g
+           stageIx' = stageIx + 1
+           stages   = _stages g
+          in inferCameraBoundaries $ maybe g (\nextStage -> g{_stage      = nextStage
+                                                             ,_stageIx    = stageIx'
+                                                             }
+                                             ) $ safeIndex (M.elems stages) stageIx'
 
 
   Jump

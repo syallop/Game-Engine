@@ -25,6 +25,7 @@ executable game
                      , sdl2       >=2.1  && <2.2
                      , linear     >=1.20 && <1.21
                      , containers >=0.5  && <0.6
+                     , lens
                      , megaparsec
                      , directory
                      , text

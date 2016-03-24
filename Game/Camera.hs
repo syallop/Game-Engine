@@ -17,6 +17,8 @@ module Game.Camera
   ,shoot
 
   ,_trackSubject
+
+  ,setBoundaries
   ) where
 
 import Foreign.C.Types
@@ -77,7 +79,7 @@ panUpBy    d c = let y' = (_panY c) - d in c{_panY = y'}
 -- ignores boundaries
 panRight,panLeft,panUp,panDown :: Camera -> Camera
 panRight = panRightBy 1
-panLeft  = panLeftBy  1 
+panLeft  = panLeftBy  1
 panDown  = panDownBy  1
 panUp    = panUpBy    1
 
@@ -196,7 +198,17 @@ shoot c renderer stage = do
              (mapPos (`worldToCamera` c') subjectTile)
 
   -- render the 'Thing's
-  mapM_ (renderTile renderer . mapPos (`worldToCamera` c') . thingTile) (things stage)
+  mapM_ (renderTile renderer . mapPos (`worldToCamera` c') . thingTile) (map fst . things $ stage)
 
   present renderer
+
+-- Set the camera boundaries.
+-- TODO: Consider what to do if the pan is outside the new boundaries
+setBoundaries :: V4 CInt -> Camera -> Camera
+setBoundaries (V4 l r u d) c = c
+  {_boundaryLeft  = l
+  ,_boundaryRight = r
+  ,_boundaryUp    = u
+  ,_boundaryDown  = d
+  }
 

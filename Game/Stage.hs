@@ -25,6 +25,7 @@ module Game.Stage
 import SDL
 import Linear
 import Foreign.C.Types
+import Control.Arrow
 
 import Game.Tile
 import Game.Tiles
@@ -32,16 +33,18 @@ import Game.Background
 import Game.Thing
 import Game.Velocity
 import Game.Force
+import Game.Agent
 
 import Debug.Trace
 
 data Stage t = Stage
   {_background :: Background t
   ,_subject    :: Subject
-  ,_things     :: [Thing]
+  ,_things     :: [(Thing,Agent)]
 
   ,_gravity    :: Force
   ,_speedLimit :: V2 CInt
+  ,_thingSpeedLimit :: V2 CInt
   }
   deriving (Eq,Show)
 
@@ -50,7 +53,10 @@ type Subject = Thing
 tickStage :: (Show t,Ord t) => CInt -> Stage t -> Stage t
 tickStage dTicks
   = applyVelocityThings dTicks
+  . applySpeedLimitThings
+  . applyThingsAgents
   . applyGravityThings
+
   . applyVelocitySubject dTicks
   . applySpeedLimitSubject
   . applyFrictionSubject
@@ -58,8 +64,8 @@ tickStage dTicks
 
 -- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
-setStage :: Background t -> Subject -> [Thing] -> Force -> Maybe (Stage t)
-setStage b s things gravity = Just $ Stage b s things gravity (V2 5 20)
+setStage :: Background t -> Subject -> [(Thing,Agent)] -> Force -> Maybe (Stage t)
+setStage b s things gravity = Just $ Stage b s things gravity (V2 5 20) (V2 4 20)
 
 -- Move a subject in a direction if they do not collide with the background
 moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp :: (Show t,Ord t) => Stage t -> Maybe (Stage t)
@@ -90,7 +96,7 @@ setSubjectTile tile stg =
   let background = backgroundTiles . _background $ stg
       subject    = _subject stg
      in if collidesTiles tile background
-        || collidesThings tile (things stg)
+        || collidesThings tile (map fst . things $ stg)
           then Nothing
           else Just $ stg{_subject = subject{_thingTile = tile}}
 
@@ -106,7 +112,7 @@ stageBackgroundImage = backgroundImage . _background
 stageSubjectTile :: Stage t -> Tile
 stageSubjectTile = _thingTile . _subject
 
-things :: Stage t -> [Thing]
+things :: Stage t -> [(Thing,Agent)]
 things = _things
 
 stageUnitSize :: Stage t -> CInt
@@ -121,7 +127,7 @@ collidesStageBackground :: (Show t,Ord t) => Stage t -> Tile -> Bool
 collidesStageBackground stg tile = collidesTiles tile (backgroundTiles . _background $ stg)
 
 collidesStageThings :: (Show t,Ord t) => Stage t -> Tile -> Bool
-collidesStageThings stg tile = collidesThings tile (_things stg)
+collidesStageThings stg tile = collidesThings tile (map fst . _things $ stg)
 
 -- Apply velocity to the subject by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
@@ -138,7 +144,7 @@ applyVelocitySubject ticks stg =
 -- Only checks collision with the background, not the subject or other things.
 applyVelocityThings :: (Show t,Ord t) => CInt -> Stage t -> Stage t
 applyVelocityThings ticks stg =
-  stg{_things = map applyVelocityThing (_things stg)
+  stg{_things = map (first applyVelocityThing) (_things stg)
      }
   where
     applyVelocityThing :: Thing -> Thing
@@ -151,7 +157,7 @@ applyGravitySubject stg = applyForceSubject (_gravity stg) stg
 -- apply gravity to all of the Things
 applyGravityThings :: Stage t -> Stage t
 applyGravityThings stg =
-  stg{_things = map (applyForceThing (_gravity stg)) (_things stg)
+  stg{_things = map (first $ applyForceThing (_gravity stg)) (_things stg)
      }
 
 -- Apply a force to a subject to change its velocity
@@ -177,6 +183,14 @@ pushForceSubject force stg
 applySpeedLimitSubject :: Stage t -> Stage t
 applySpeedLimitSubject stg = stg{_subject = mapVelocity (limitVelocity (_speedLimit stg)) (_subject stg)}
 
+-- Reduce all things velocity if it has exceeded the limit
+applySpeedLimitThings :: Stage t -> Stage t
+applySpeedLimitThings stg = stg{_things = map (first (applySpeedLimitThing (_thingSpeedLimit stg))) (_things stg)}
+  where
+    applySpeedLimitThing :: V2 CInt -> Thing -> Thing
+    applySpeedLimitThing l = mapVelocity (limitVelocity l)
+
+-- Apply friction to the subject
 applyFrictionSubject :: (Show t,Ord t) => Stage t -> Stage t
 applyFrictionSubject stg
   -- Standing on a tile
@@ -184,4 +198,41 @@ applyFrictionSubject stg
 
   -- Less air friction
   | otherwise = applyForceSubject (opposeX 1 (_velocity . _subject $ stg)) stg
+  {-| otherwise = applyForceSubject (opposeX 1 (_velocity . _subject $ stg)) stg-}
+
+-- Update each thing by its corresponding agent
+applyThingsAgents :: Stage t -> Stage t
+applyThingsAgents stg =
+  let things  = _things stg
+      things' = map (\(t,a) -> (applyThingAgent (t,a) stg,a)) things
+     in stg{_things = things'}
+
+-- Ask a things agent what to do with a thing, then do it.
+applyThingAgent :: (Thing,Agent) -> Stage t -> Thing
+applyThingAgent (thing,agent) stg =
+  let ob = Observe {_observeAgentPosition  = (\t -> V2 (posX t) (posY t)) . _thingTile $ thing
+                   ,_observePlayerPosition = (\t -> V2 (posX t) (posY t)) . _thingTile . _subject $ stg
+                   ,_observeAgentHealth    = 3
+                   ,_observePlayerHealth   = 3
+                   }
+      actions = observe ob agent
+     in foldr applyActionThing thing actions
+
+-- Apply a single action to a thing
+applyActionThing :: Action -> Thing -> Thing
+applyActionThing a t = case a of
+  WalkLeft
+    -> applyForceThing (Force $ V2 (-1) 0) t
+
+  WalkRight
+    -> applyForceThing (Force $ V2 1 0) t
+
+  Jump
+    -> applyForceThing (Force $ V2 0 (-5)) t
+
+  And a1 a2
+    -> applyActionThing a2 . applyActionThing a1 $ t
+
+  Or a1 a2
+    -> applyActionThing a1 t
 

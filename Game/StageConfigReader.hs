@@ -16,6 +16,7 @@ import Game.Stage
 import Game.Velocity
 import Game.Force
 import Game.Background
+import Game.Agent
 
 import Game.ThingConfigReader
 import Game.TileConfigReader
@@ -26,7 +27,7 @@ import Linear hiding (trace)
 
 import Data.Maybe
 import Data.Monoid
-import Data.Text hiding (filter,foldr,map)
+import Data.Text hiding (filter,foldr,map,zip)
 import Control.Applicative
 import qualified Data.Map as Map
 import Text.Megaparsec
@@ -176,7 +177,7 @@ parseStage stageDir stagesPath renderer = do
                 -> do mBackground <- parseBackground (stagesPath ++ "/" ++ stageDir) tileset aliases unitSize renderer
                       case mBackground of
                         Nothing         -> return Nothing
-                        Just background -> return $ setStage background player (Map.elems otherThings) gravity
+                        Just background -> return $ setStage background player ((`zip` repeat exAgent) . Map.elems $ otherThings) gravity
   where
     conv :: Int -> CInt
     conv = toEnum . fromEnum
