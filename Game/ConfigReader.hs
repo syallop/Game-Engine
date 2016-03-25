@@ -4,6 +4,7 @@ module Game.ConfigReader where
 import Game.ConfigReader.Parser
 import Game.ConfigReader.Config
 import Game.ConfigReader.ConfigFmt
+import Game.ConfigReader.ArgFmt
 
 import Text.Megaparsec
 import Text.Megaparsec.Text

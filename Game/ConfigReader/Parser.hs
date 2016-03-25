@@ -113,6 +113,9 @@ argP argFmt = case argFmt of
   ArgFmtBool  -> argBoolP
   ArgFmtText  -> argTextP
 
+  ArgFmtList elemFmt
+    -> argListP elemFmt
+
 argIntP :: Parser (Arg Int)
 argIntP = ArgInt <$> intP
 
@@ -143,5 +146,11 @@ trueP  = pure (ArgBool True)  <* (string' "true" <|> string' "yes" <|> string "1
 falseP = pure (ArgBool False) <* (string' "false" <|> string' "no" <|> string "0")
 
 argTextP :: Parser (Arg Text)
-argTextP = ArgText . pack <$> ((string "\"") *> (many $ noneOf "\"") <* (string' "\""))
+argTextP = ArgText . pack <$> (string "\"" *> many (noneOf "\"") <* string' "\"")
+
+argListP :: Eq t => ArgFmt t -> Parser (Arg [t])
+argListP elemFmt = ArgList <$> (do string "["
+                                   es <- sepBy (argP elemFmt) (string ",")
+                                   string "]"
+                                   return es)
 

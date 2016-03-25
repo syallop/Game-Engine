@@ -13,4 +13,5 @@ data ArgFmt t where
   ArgFmtChar  :: ArgFmt Char
   ArgFmtBool  :: ArgFmt Bool
   ArgFmtText  :: ArgFmt Text
+  ArgFmtList  :: Eq t => ArgFmt t -> ArgFmt [t]
 
