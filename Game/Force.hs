@@ -1,4 +1,7 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE
+    GeneralizedNewtypeDeriving
+  , TemplateHaskell
+  #-}
 module Game.Force
   (Force(..)
   ,sumForce
@@ -11,14 +14,16 @@ module Game.Force
   )
   where
 
+import Control.Lens
 import Data.Coerce
 import Foreign.C.Types
 import Linear
-
 import Game.Velocity
 
 newtype Force = Force {_force :: V2 CInt}
   deriving (Show,Eq,Num)
+
+makeLenses ''Force
 
 sumForce :: [Force] -> Force
 sumForce = foldr (\f g -> Force $ (coerce f) + (coerce g)) (Force $ V2 0 0)

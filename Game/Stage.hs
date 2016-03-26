@@ -77,9 +77,9 @@ setStage b s things gravity = Just $ Stage b s things gravity (V2 5 20) (V2 4 20
 -- Move a subject in a direction if they do not collide with the background
 moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp :: (Show t,Ord t) => Stage t -> Maybe (Stage t)
 moveSubjectRight = moveSubjectRightBy 1
-moveSubjectLeft  = moveSubjectLeftBy 1
-moveSubjectDown  = moveSubjectDownBy 1
-moveSubjectUp    = moveSubjectUpBy 1
+moveSubjectLeft  = moveSubjectLeftBy  1
+moveSubjectDown  = moveSubjectDownBy  1
+moveSubjectUp    = moveSubjectUpBy    1
 -- Move a subject in a direction by a positive amount if they do not collide
 -- with the background
 moveSubjectRightBy, moveSubjectLeftBy, moveSubjectDownBy, moveSubjectUpBy :: (Show t,Ord t) => CInt -> Stage t -> Maybe (Stage t)
@@ -92,7 +92,7 @@ moveSubjectUpBy    y = mapSubjectTile (moveTileU y)
 -- collide with the background
 mapSubjectTile :: (Show t,Ord t) => (Tile -> Tile) -> Stage t -> Maybe (Stage t)
 mapSubjectTile f stg =
-  let tile     = _thingTile . _stageSubject $ stg
+  let tile     = stg^.stageSubject.thingTile
       nextTile = f tile
      in setSubjectTile nextTile stg
 
@@ -101,11 +101,10 @@ mapSubjectTile f stg =
 setSubjectTile :: (Show t,Ord t) => Tile -> Stage t -> Maybe (Stage t)
 setSubjectTile tile stg =
   let background = stg^.stageBackgroundTiles
-      subject    = _stageSubject stg
+      subject    = stg^.stageSubject
      in if collidesTiles tile background
         || collidesThings tile (map fst $ stg^.stageThings)
           then Nothing
-          {-else Just $ stg{_stageSubject = subject{_thingTile = tile}}-}
           else Just $ set (stageSubject.thingTile) tile stg
 
 stageBackgroundTiles :: Lens' (Stage t) (Tiles t)
@@ -133,10 +132,15 @@ collidesStageThings stg tile = collidesThings tile (map fst $ stg^.stageThings)
 -- Checks collision with the background and other things.
 applyVelocitySubject :: (Show t,Ord t) => CInt -> Stage t -> Stage t
 applyVelocitySubject ticks stg =
-  stg{_stageSubject = tryMoveThingBy ((* (V2 ticks ticks)) . _vel . _thingVelocity . _stageSubject $ stg)
-                                (_stageSubject stg)
-                                (not . collidesAnything stg)
-     }
+  over stageSubject (\subject -> tryMoveThingBy ((* (V2 ticks ticks)) $ stg^.stageSubject.thingVelocity.vel)
+                                                (stg^.stageSubject)
+                                                (not . collidesAnything stg)) stg
+
+
+  {-stg{_stageSubject = tryMoveThingBy ((* (V2 ticks ticks)) . _vel . _thingVelocity . _stageSubject $ stg)-}
+                                {-(stg^.stageSubject)-}
+                                {-(not . collidesAnything stg)-}
+     {-}-}
 
 -- Apply velocity to the things by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.

@@ -1,4 +1,7 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE
+    GeneralizedNewtypeDeriving
+  , TemplateHaskell
+  #-}
 module Game.Velocity
   (Velocity(..)
   ,applyVelocity
@@ -10,14 +13,19 @@ module Game.Velocity
   ,movingRight
   ,movingDown
   ,movingUp
+
+  ,vel
   )
   where
 
+import Control.Lens
 import Foreign.C.Types
 import Linear
 
 newtype Velocity = Velocity {_vel :: V2 CInt}
   deriving (Show,Eq,Num)
+
+makeLenses ''Velocity
 
 applyVelocity :: Velocity -> V2 CInt -> V2 CInt
 applyVelocity (Velocity (V2 dX dY)) (V2 x y) = V2 (x + dX) (y + dY)

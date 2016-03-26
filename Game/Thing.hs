@@ -51,10 +51,10 @@ makeLenses ''Thing
 type Things = Map Text Thing
 
 setMass :: Thing -> Thing
-setMass t = t{_thingHasMass = True}
+setMass = set thingHasMass True
 
 setMassless :: Thing -> Thing
-setMassless t = t{_thingHasMass = False}
+setMassless = set thingHasMass False
 
 -- Move a thing in a direction
 moveThingRight, moveThingLeft, moveThingDown, moveThingUp :: Thing -> Thing
