@@ -60,6 +60,14 @@ stageConfigFmt = ConfigFmt
   ,(OptionPairFmt (OptionFmt "baseThings"      [SomeArgFmt ArgFmtText])
                   (OptionFmt "emptyBaseThings" [])
                   ,DefaultFmt False            [])
+
+  ,(OptionPairFmt (OptionFmt "subjectSpeedLimit"      [SomeArgFmt ArgFmtInt, SomeArgFmt ArgFmtInt])
+                  (OptionFmt "emptySubjectSpeedLimit" [])
+                  ,DefaultFmt False                   [])
+
+  ,(OptionPairFmt (OptionFmt "thingSpeedLimit"      [SomeArgFmt ArgFmtInt, SomeArgFmt ArgFmtInt])
+                  (OptionFmt "emptyThingSpeedLimit" [])
+                  ,DefaultFmt False                 [])
   ]
 
 thingInstanceConfigFmt :: ConfigFmt
@@ -157,6 +165,22 @@ parseStage stageDir stagesPath renderer = do
                         -- empty tileset => use the empty string as a sentinel (parser never returns it)
                         else ""
 
+            let subjectSpeedLimit
+                    = if isSet "subjectSpeedLimit" stageConfig
+                        then case getArgs "subjectSpeedLimit" stageConfig of
+                               [SomeArg (ArgInt x), SomeArg (ArgInt y)] -> V2 (conv x) (conv y)
+                               _ -> error "Didnt parse as claimed"
+                        -- empty subject speed limit => default to... something too high!
+                        else V2 100 100
+
+            let thingSpeedLimit
+                    = if isSet "thingSpeedLimit" stageConfig
+                        then case getArgs "thingSpeedLimit" stageConfig of
+                               [SomeArg (ArgInt x), SomeArg (ArgInt y)] -> V2 (conv x) (conv y)
+                               _ -> error "Didnt parse as claimed"
+                        -- empty thing speed limit => default to... something too high!
+                        else V2 100 100
+
             -- Load the stages tileset
             tileset <- parseTileSet ("R/Tilesets/" ++ unpack tilesetName) renderer
 
@@ -181,7 +205,7 @@ parseStage stageDir stagesPath renderer = do
                 -> do mBackground <- parseBackground (stagesPath ++ "/" ++ stageDir) tileset aliases unitSize renderer
                       case mBackground of
                         Nothing         -> return Nothing
-                        Just background -> return $ setStage background player ((`zip` repeat exAgent) . Map.elems $ otherThings) gravity
+                        Just background -> return $ setStage background player ((`zip` repeat exAgent) . Map.elems $ otherThings) gravity subjectSpeedLimit thingSpeedLimit
   where
     conv :: Int -> CInt
     conv = toEnum . fromEnum
