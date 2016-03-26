@@ -13,11 +13,13 @@ import Game.Tile
 import Game.Tiles
 import Game.Velocity
 import Game.Thing
+import Game.Counter
 
 import Linear
 import Linear.Affine (Point(..))
 import Foreign.C.Types
 
+import Data.Maybe
 import Data.Monoid
 import Data.Text hiding (filter,foldr)
 import Control.Applicative
@@ -102,8 +104,9 @@ parseThing thingFile thingsPath radius tileset = do
                 -> return Nothing
 
               Just (tileInfo,tile)
-                -> let isSolid         = _tileSolid tileInfo
+                -> let isSolid         = _tileInfoIsSolid tileInfo
                        hasMass         = isSet "mass" thingConfig
                        defaultVelocity = Velocity (V2 0 0)
-                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity
+                       defaultCounter  = fromJust $ mkCounter 3 0 3
+                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter
 

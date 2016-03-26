@@ -1,8 +1,10 @@
+{-# LANGUAGE TemplateHaskell #-}
 -- Defines individual square tiles in colored and textured varieties.
 -- A tile has a position and a radius which can be queried and altered.
 -- A tile can be rendered with 'renderTile'
 module Game.Tile
   (TileColor
+  ,redC,greenC,blueC,alphaC
   ,white,black,red,green,blue
 
   ,Tile()
@@ -12,27 +14,33 @@ module Game.Tile
   ,loadTextureTile
   ,invisibleTile
 
-  ,posX
-  ,posY
-  ,radius
+  ,tilePos
+  ,tilePosX
+  ,tilePosY
+  ,tileSize
+  ,tileWidth
+  ,tileHeight
 
-  ,leftX
-  ,rightX
-  ,topY
-  ,bottomY
+  ,tileL
+  ,tileR
+  ,tileT
+  ,tileB
 
-  ,move
-  ,moveR
-  ,moveL
-  ,moveD
-  ,moveU
+  ,tileTL
+  ,tileTR
+  ,tileBL
+  ,tileBR
 
-  ,setColor
-  ,setRadius
-  ,mapPos
+  ,tileColor
+  ,tileTexture
+
+  ,moveTile
+  ,moveTileR
+  ,moveTileL
+  ,moveTileD
+  ,moveTileU
 
   ,renderTile
-
   ,loadTexture
   )
   where
@@ -43,8 +51,17 @@ import Linear.Affine
 import Foreign.C.Types
 import GHC.Word
 
+import Control.Lens
+
 -- Alias for a vector of RGBA
 type TileColor = V4 Word8
+
+redC, greenC, blueC, alphaC :: Lens' TileColor Word8
+redC   = _x
+greenC = _y
+blueC  = _z
+alphaC = _x
+
 
 -- TileColors for convenience
 white,black,red,green,blue :: TileColor
@@ -80,78 +97,114 @@ instance Show Tile where
     TextureTile r t -> "TextureTile " ++ show r
     InvisibleTile r -> "InvisibleTile " ++ show r
 
--- x coordinate of left of tile
-posX :: Tile -> CInt
-posX   t = let Rectangle (P (V2 x _)) _        = _tileRectangle t in x
 
--- y coordinate of top of tile
-posY :: Tile -> CInt
-posY   t = let Rectangle (P (V2 _ y)) _        = _tileRectangle t in y
+makeLenses ''Tile
 
-leftX :: Tile -> CInt
-leftX = posX
+rectPos :: Lens' (Rectangle a) (Point V2 a)
+rectPos = lens (\(Rectangle p s) -> p) (\(Rectangle p0 s) p1 -> Rectangle p1 s)
 
-rightX :: Tile -> CInt
-rightX t = leftX t + radius t
+rectSize :: Lens' (Rectangle a) (V2 a)
+rectSize = lens (\(Rectangle p s) -> s) (\(Rectangle p s0) s1 -> Rectangle p s1)
 
-topY :: Tile -> CInt
-topY = posY
 
-bottomY :: Tile -> CInt
-bottomY t = topY t + radius t
+tilePos :: Lens' Tile (Point V2 CInt)
+tilePos = tileRectangle.rectPos
 
--- radius of tile
-radius :: Tile -> CInt
-radius t = let Rectangle _            (V2 r _) = _tileRectangle t in r
+tilePosX :: Lens' Tile CInt
+tilePosX = tilePos.lensP._x
+
+tilePosY :: Lens' Tile CInt
+tilePosY = tilePos.lensP._y
+
+tileSize :: Lens' Tile (V2 CInt)
+tileSize = tileRectangle.rectSize
+
+tileWidth :: Lens' Tile CInt
+tileWidth = tileSize._x
+
+tileHeight :: Lens' Tile CInt
+tileHeight = tileSize._y
+
+tileL :: Lens' Tile CInt
+tileL = tilePosX
+
+tileR :: Lens' Tile CInt
+tileR = lens (\t -> (t^.tileL) + (t^.tileWidth)) (\t r -> tileL .~ (r - (t^.tileWidth)) $ t)
+
+tileT :: Lens' Tile CInt
+tileT = tilePosY
+
+tileB :: Lens' Tile CInt
+tileB = lens (\t -> (t^.tileT) + (t^.tileHeight)) (\t b -> tileT .~ (b - (t^.tileHeight)) $ t)
+
+tileTL :: Lens' Tile (Point V2 CInt)
+tileTL = tilePos
+
+tileTR :: Lens' Tile (Point V2 CInt)
+tileTR = lens (\t -> (t^.tileTL) + (P $ V2 (t^.tileWidth) 0)) (\t tr -> tilePos .~ (tr - (P $ V2 (t^.tileWidth) 0)) $ t)
+
+tileBL :: Lens' Tile (Point V2 CInt)
+tileBL = lens (\t -> (t^.tileTL) + (P $ V2 0 (t^.tileHeight))) (\t bl -> tilePos .~ (bl - (P $ V2 0 (t^.tileHeight))) $ t)
+
+tileBR :: Lens' Tile (Point V2 CInt)
+tileBR = lens (\t -> (t^.tileTL) + (P $ V2 (t^.tileWidth) (t^.tileHeight))) (\t br -> tilePos .~ (br - (P $ V2 (t^.tileWidth) (t^.tileHeight))) $ t)
+
 
 -- Move a tile right and down by the given offset
-move :: V2 CInt -> Tile -> Tile
-move (V2 dx dy) = moveD dy . moveR dx
+moveTile :: V2 CInt -> Tile -> Tile
+moveTile o = tilePos+~P o
+{-move (V2 dx dy) = moveD dy . moveR dx-}
 
 -- move a tile right
-moveR :: CInt -> Tile -> Tile
-moveR d t = t{_tileRectangle
-                  = let Rectangle (P (V2 x y)) r = _tileRectangle t
-                       in Rectangle (P (V2 (x+d) y)) r
-             }
+moveTileR :: CInt -> Tile -> Tile
+moveTileR r = tilePos+~(P $ V2 r 0)
+{-moveR d t = t{_tileRectangle-}
+                  {-= let Rectangle (P (V2 x y)) r = _tileRectangle t-}
+                       {-in Rectangle (P (V2 (x+d) y)) r-}
+             {-}-}
 
 -- move a tile left
-moveL :: CInt -> Tile -> Tile
-moveL d t = t{_tileRectangle
-                  = let Rectangle (P (V2 x y)) r = _tileRectangle t
-                       in Rectangle (P (V2 (x-d) y)) r
-             }
+moveTileL :: CInt -> Tile -> Tile
+moveTileL l = moveTileR (-1*l)
+{-moveL d t = t{_tileRectangle-}
+                  {-= let Rectangle (P (V2 x y)) r = _tileRectangle t-}
+                       {-in Rectangle (P (V2 (x-d) y)) r-}
+             {-}-}
 
 -- move a tile down
-moveD :: CInt -> Tile -> Tile
-moveD d t = t{_tileRectangle
-                  = let Rectangle (P (V2 x y)) r = _tileRectangle t
-                       in Rectangle (P (V2 x (y+d))) r
-             }
+moveTileD :: CInt -> Tile -> Tile
+moveTileD d = tilePos+~(P $ V2 0 d)
+{-moveD d t = t{_tileRectangle-}
+                  {-= let Rectangle (P (V2 x y)) r = _tileRectangle t-}
+                       {-in Rectangle (P (V2 x (y+d))) r-}
+             {-}-}
 
 -- move a tile up
-moveU :: CInt -> Tile -> Tile
-moveU d t = t{_tileRectangle
-                  = let Rectangle (P (V2 x y)) r = _tileRectangle t
-                       in Rectangle (P (V2 x (y-d))) r
-             }
+moveTileU :: CInt -> Tile -> Tile
+moveTileU u = moveTileD (-1* u)
+{-moveU d t = t{_tileRectangle-}
+                  {-= let Rectangle (P (V2 x y)) r = _tileRectangle t-}
+                       {-in Rectangle (P (V2 x (y-d))) r-}
+             {-}-}
 
 
 -- set the color of a tile
-setColor :: TileColor -> Tile -> Tile
-setColor c t = t{_tileColor = c}
+{-setColor :: TileColor -> Tile -> Tile-}
+{-setColor c t = t{_tileColor = c}-}
 
 -- set the radius of a tile
-setRadius :: CInt -> Tile -> Tile
-setRadius r t = t{_tileRectangle
-                      = let Rectangle p _ = _tileRectangle t
-                           in Rectangle p (V2 r r)
-                 }
+{-setRadius :: CInt -> Tile -> Tile-}
+{-setRadius r t = t{_tileRectangle-}
+                      {-= let Rectangle p _ = _tileRectangle t-}
+                           {-in Rectangle p (V2 r r)-}
+                 {-}-}
 
-mapPos :: (V2 CInt -> V2 CInt) -> Tile -> Tile
-mapPos f t = t{_tileRectangle = let Rectangle (P p) r = _tileRectangle t
-                                   in Rectangle (P $ f p) r
-              }
+{-mapPos :: (Point V2 CInt -> Point V2 CInt) -> Tile -> Tile-}
+{-mapPos = over tilePos-}
+
+{-mapPos f t = t{_tileRectangle = let Rectangle (P p) r = _tileRectangle t-}
+                                   {-in Rectangle (P $ f p) r-}
+              {-}-}
 
 -- the default tile is at (0,0) has a radius of 1 and is white
 defaultTile :: Tile
@@ -175,6 +228,10 @@ renderTile renderer t = case t of
 colorTile :: TileColor -> Point V2 CInt -> CInt -> Tile
 colorTile color pos radius = ColorTile (Rectangle pos (V2 radius radius)) color
 
+-- create an invisible tile with a position and radius
+invisibleTile :: Point V2 CInt -> CInt -> Tile
+invisibleTile pos radius = InvisibleTile (Rectangle pos (V2 radius radius))
+
 -- load a bmp texture from a file and create a texture tile with a position and radius
 loadTextureTile :: Renderer -> FilePath -> Point V2 CInt -> CInt -> IO Tile
 loadTextureTile renderer fp pos radius = loadTexture renderer fp >>= \tex -> return $ textureTile tex pos radius
@@ -190,8 +247,4 @@ loadTexture renderer fp = do
   texture <- createTextureFromSurface renderer surface
   freeSurface surface
   return texture
-
--- create an invisible tile with a position and radius
-invisibleTile :: Point V2 CInt -> CInt -> Tile
-invisibleTile pos radius = InvisibleTile (Rectangle pos (V2 radius radius))
 

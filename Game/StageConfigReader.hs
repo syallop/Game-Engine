@@ -25,6 +25,7 @@ import SDL
 import Foreign.C.Types
 import Linear hiding (trace)
 
+import Control.Lens
 import Data.Maybe
 import Data.Monoid
 import Data.Text hiding (filter,foldr,map,zip)
@@ -325,7 +326,7 @@ parseThingInstance baseThings thingInstanceFile stagePath = do
                                 -> return Nothing
 
                               Just baseThing
-                                -> return . Just . setVelocity (Velocity velocity) . moveThingBy positionOffset $ baseThing
+                                -> return . Just . set thingVelocity (Velocity velocity) . moveThingBy positionOffset $ baseThing
 
 
                   _

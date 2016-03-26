@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Main where
 
 import Control.Monad
@@ -10,6 +11,7 @@ import Linear.Affine (Point(..))
 import Foreign.C.Types
 import GHC.Word
 import Control.Applicative
+import Control.Lens hiding (cons,uncons)
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -32,19 +34,21 @@ import Game.StageConfigReader
 import Debug.Trace
 
 data Game = Game
-  {_quit      :: Bool
+  {_gameQuit      :: Bool
 
-  ,_stage     :: Stage Text -- the current stage
-  ,_stageIx   :: Int        -- the current stage ix in stages
-  ,_stages    :: Stages     -- all the possible stages
+  ,_gameStage     :: Stage Text -- the current stage
+  ,_gameStageIx   :: Int        -- the current stage ix in stages
+  ,_gameStages    :: Stages     -- all the possible stages
 
-  ,_camera    :: Camera
-  ,_panSpeed  :: CInt
+  ,_gameCamera    :: Camera
+  ,_gamePanSpeed  :: CInt
 
-  ,_lastTicks :: Word32 -- Number of ticks since sdl initialisation, as of the last game step
-  ,_tickDelta :: CInt   -- Number of tenths of a tick since last check
+  ,_gameLastTicks :: Word32 -- Number of ticks since sdl initialisation, as of the last game step
+  ,_gameTickDelta :: CInt   -- Number of tenths of a tick since last check
   }
   deriving Show
+
+makeLenses ''Game
 
 initialGame :: Renderer -> CInt -> CInt -> IO Game
 initialGame renderer width height = do
@@ -55,15 +59,15 @@ initialGame renderer width height = do
   let stage0     = (!! 0) . M.elems $ stages
 
   -- Boundaries the camera should not move past
-  let tileSize = stageUnitSize stage0
-      rows     = (_tileRows . stageBackgroundTiles $ stage0)
+  let tileSize = stage0^.stageBackgroundTiles.tilesUnitSize
+      rows     = stage0^.stageBackgroundTiles.tilesRows
       boundaryLeft   = 0
       boundaryRight  = tilesWidth rows * tileSize
       boundaryTop    = 0
       boundaryBottom = tilesHeight rows * tileSize
 
   --todo pan bottom edge
-  let panSubjectTL   = panTo (V2 0 (backgroundHeight (stageBackground stage0) - height))
+  let panSubjectTL   = panTo (V2 0 (backgroundHeight (stage0^.stageBackground) - height))
   let initialCamera  = panSubjectTL $ fromJust
                                     $ mkCamera (V2 width height)
                                                (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
@@ -74,15 +78,15 @@ initialGame renderer width height = do
 -- and set it.
 inferCameraBoundaries :: Game -> Game
 inferCameraBoundaries g =
-  let stage    = _stage g
-      tileSize = stageUnitSize stage
-      rows     = _tileRows . stageBackgroundTiles $ stage
+  let stage    = g^.gameStage
+      tileSize = stage^.stageBackgroundTiles.tilesUnitSize
+      rows     = stage^.stageBackgroundTiles.tilesRows
       l = 0
       r = tilesWidth rows * tileSize
       u = 0
       d = tilesHeight rows * tileSize
       boundaries = V4 l r u d
-    in g{_camera = setBoundaries boundaries $ _camera g}
+    in over gameCamera (setBoundaries boundaries) g
 
 
 data Command
@@ -148,86 +152,78 @@ runCommands = foldr runCommand
 runCommand :: Command -> Game -> Game
 runCommand c g = case c of
   MoveLeft
-    -> g{_stage = applyForceSubject (Force $ V2 (-4) 0) $ _stage g}
+    -> over gameStage (applyForceSubject (Force $ V2 (-4) 0)) g
 
   MoveRight
-    -> g{_stage = applyForceSubject (Force $ V2 4 0) $ _stage g}
+    -> over gameStage (applyForceSubject (Force $ V2 4 0)) g
 
   MoveUp
-    -> g{_stage = applyForceSubject (Force $ V2 0 0) $ _stage g}
+    -> over gameStage (applyForceSubject (Force $ V2 0 0)) g
 
   MoveDown
-    -> g{_stage = applyForceSubject (Force $ V2 0 0) $ _stage g}
-
+    -> over gameStage (applyForceSubject (Force $ V2 0 0)) g
 
 
   PanLeft
-    -> g{_camera = panLeftBy (_panSpeed g) $ _camera g}
+    -> over gameCamera (panLeftBy (g^.gamePanSpeed)) g
 
   PanRight
-    -> g{_camera = panRightBy (_panSpeed g) $ _camera g}
+    -> over gameCamera (panRightBy (g^.gamePanSpeed)) g
 
   PanDown
-    -> g{_camera = panDownBy (_panSpeed g) $ _camera g}
+    -> over gameCamera (panDownBy (g^.gamePanSpeed)) g
 
   PanUp
-    -> g{_camera = panUpBy (_panSpeed g) $ _camera g}
+    -> over gameCamera (panUpBy (g^.gamePanSpeed)) g
 
 
   IncreasePan
-    -> g{_panSpeed = _panSpeed g + 1}
+    -> over gamePanSpeed (+1) g
 
   DecreasePan
-    -> g{_panSpeed = if (_panSpeed g - 1) < 0 then 0 else _panSpeed g - 1}
-
+    -> over gamePanSpeed (subtract 1) g
 
   PrevStage
-    -> let stageIx  = _stageIx g
-           stageIx' = stageIx - 1
-           stages   = _stages g
-          in inferCameraBoundaries $ maybe g (\nextStage -> g{_stage      = nextStage
-                                                             ,_stageIx    = stageIx'
-                                                             }
-                                             ) $ safeIndex (M.elems stages) stageIx'
+    -> let stageIx    = g^.gameStageIx
+           stageIx'   = stageIx - 1
+           stages     = g^.gameStages
+           mNextStage = safeIndex (M.elems stages) stageIx'
+          in inferCameraBoundaries $ maybe g (\nextStage -> set gameStage nextStage . set gameStageIx stageIx' $ g) mNextStage
 
   NextStage
-    -> let stageIx  = _stageIx g
-           stageIx' = stageIx + 1
-           stages   = _stages g
-          in inferCameraBoundaries $ maybe g (\nextStage -> g{_stage      = nextStage
-                                                             ,_stageIx    = stageIx'
-                                                             }
-                                             ) $ safeIndex (M.elems stages) stageIx'
+    -> let stageIx    = g^.gameStageIx
+           stageIx'   = stageIx + 1
+           stages     = g^.gameStages
+           mNextStage = safeIndex (M.elems stages) stageIx'
+          in inferCameraBoundaries $ maybe g (\nextStage -> set gameStage nextStage . set gameStageIx stageIx' $ g) mNextStage
 
 
   Jump
-    -> g{_stage = pushForceSubject (Force $ V2 0 (-12)) (_stage g)}
-
+    -> over gameStage (pushForceSubject (Force $ V2 0 (-12))) g
 
   TrackSubject
-    -> let cam  = _camera g
-           cam' = cam{_trackSubject = not . _trackSubject $ cam}
-        in g{_camera = cam'}
-
+    -> let cam  = g^.gameCamera
+           cam' = over cameraTrackSubject not cam
+        in set gameCamera cam' g
 
   Shoot
     -> g
 
   Quit
-    -> g{_quit = True}
+    -> set gameQuit True g
 
 -- Render a step of the game state
 stepGame :: (Window,Renderer) -> Game -> IO (Bool,Game)
-stepGame (window,renderer) game = if _quit game then return (True,game) else do
+stepGame (window,renderer) game = if _gameQuit game then return (True,game) else do
   -- Screen to white
   rendererDrawColor renderer $= white
 
   -- Update the stage
-  let stage' = tickStage (_tickDelta game) (_stage game)
-      game'  = game{_stage = stage'}
+  let stage' = tickStage (_gameTickDelta game) (_gameStage game)
+      game'  = game{_gameStage = stage'}
 
   -- Shoot a frame of the game
-  shoot (_camera game') renderer stage'
+  shoot (_gameCamera game') renderer stage'
 
   return (False,game')
 
@@ -313,10 +309,10 @@ safeIndex (x:xs) n
 tickDelta :: Game -> IO Game
 tickDelta g = do
   total <- ticks
-  let last  = _lastTicks g
+  let last  = _gameLastTicks g
       delta = total - last
-  return $ g{_lastTicks = total
-            ,_tickDelta = (word32ToCInt delta) `div` 10
+  return $ g{_gameLastTicks = total
+            ,_gameTickDelta = (word32ToCInt delta) `div` 10
             }
 
 word32ToCInt :: Word32 -> CInt

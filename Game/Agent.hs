@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Game.Agent
   (Agent()
   ,mkAgent
@@ -15,6 +16,7 @@ module Game.Agent
 import Control.Lens
 import Foreign.C.Types
 import Linear hiding (trace)
+import Linear.Affine
 import Data.Maybe
 import qualified Data.Map as Map
 
@@ -45,11 +47,13 @@ type Rules = Map.Map Trigger Action
 
 -- Information the agent observes to determine any triggers
 data Observe = Observe
-  {_observeAgentPosition  :: V2 CInt
-  ,_observePlayerPosition :: V2 CInt
+  {_observeAgentPosition  :: Point V2 CInt
+  ,_observePlayerPosition :: Point V2 CInt
   ,_observeAgentHealth    :: CInt
   ,_observePlayerHealth   :: CInt
   }
+
+makeLenses ''Observe
 
 -- List of actions which triggered
 triggerActions :: Observe -> Rules -> [Action]
@@ -59,25 +63,27 @@ triggerActions o = foldr (\(t,a) acc -> if doesTrigger o t then a:acc else acc) 
 doesTrigger :: Observe -> Trigger -> Bool
 doesTrigger o t = case t of
   DistanceLess d
-    -> (distance (fmap cIntToCFloat . _observeAgentPosition $ o) (fmap cIntToCFloat . _observePlayerPosition $ o)) < (cIntToCFloat d)
+    -> distance (fmap cIntToCFloat $ o^.observeAgentPosition.lensP)
+                (fmap cIntToCFloat $ o^.observePlayerPosition.lensP)
+       < cIntToCFloat d
 
   AgentHealthHigher h
-    -> h < _observeAgentHealth o
+    -> h < o^.observeAgentHealth
 
   PlayerHealthHigher h
-    -> h < _observePlayerHealth o
+    -> h < o^.observePlayerHealth
 
   PlayerLeft
-    -> (view _x . _observePlayerPosition $ o) < (view _x . _observeAgentPosition $ o)
+    -> (o^.observePlayerPosition.lensP._x) < (o^.observeAgentPosition.lensP._x)
 
   PlayerRight
-    -> (view _x . _observeAgentPosition $ o) < (view _x . _observePlayerPosition $ o)
+    -> (o^.observeAgentPosition.lensP._x) < (o^.observePlayerPosition.lensP._x)
 
   PlayerUp
-    -> (view _y . _observePlayerPosition $ o) < (view _y . _observeAgentPosition $ o)
+    -> (o^.observePlayerPosition.lensP._y) < (o^.observeAgentPosition.lensP._y)
 
   PlayerDown
-    -> (view _y . _observeAgentPosition $ o) < (view _y . _observePlayerPosition $ o)
+    -> (o^.observeAgentPosition.lensP._y) < (o^.observePlayerPosition.lensP._y)
 
   AndT t1 t2
     -> doesTrigger o t1 && doesTrigger o t2
@@ -113,6 +119,6 @@ exAgent :: Agent
 exAgent = fromJust $ mkAgent $ Map.fromList
   {-[(DistanceLess 128,Jump)-}
   {-]-}
-  [((DistanceLess 256) `AndT` PlayerLeft,WalkLeft)
-  ,((DistanceLess 256) `AndT` PlayerRight,WalkRight)
+  [(DistanceLess 256 `AndT` PlayerLeft,WalkLeft)
+  ,(DistanceLess 256 `AndT` PlayerRight,WalkRight)
   ]

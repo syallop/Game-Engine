@@ -17,6 +17,7 @@ data Counter = Counter
   ,_minCount     :: CInt
   ,_maxCount     :: CInt
   }
+  deriving (Show,Eq)
 
 mkCounter :: CInt -- ^ Initial count
           -> CInt -- ^ Minimum count

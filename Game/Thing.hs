@@ -1,5 +1,12 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Game.Thing
   (Thing(..)
+  ,thingTile
+  ,thingIsSolid
+  ,thingHasMass
+  ,thingVelocity
+  ,thingHealth
+
   ,setMass
   ,setMassless
 
@@ -9,14 +16,9 @@ module Game.Thing
 
   ,tryMoveThingBy
 
-  ,mapThingTile
-  ,thingTile
-
   ,collidesThing
   ,collidesThings
 
-  ,mapVelocity
-  ,setVelocity
   ,applyForceThing
 
   ,Things
@@ -29,26 +31,32 @@ import Linear
 import Game.Tile
 import Game.Velocity
 import Game.Force
+import Game.Counter
 
 import Data.Map
 import Data.Text hiding (any)
 
+import Control.Lens
+
 -- A _thing_ with a drawable tile
 data Thing = Thing
-  {_thingTile :: Tile
-  ,_isSolid   :: Bool
-  ,_hasMass   :: Bool
-  ,_velocity  :: Velocity
+  {_thingTile     :: Tile
+  ,_thingIsSolid  :: Bool
+  ,_thingHasMass  :: Bool
+  ,_thingVelocity :: Velocity
+  ,_thingHealth   :: Counter
   }
   deriving (Eq,Show)
+
+makeLenses ''Thing
 
 type Things = Map Text Thing
 
 setMass :: Thing -> Thing
-setMass t = t{_hasMass = True}
+setMass t = t{_thingHasMass = True}
 
 setMassless :: Thing -> Thing
-setMassless t = t{_hasMass = False}
+setMassless t = t{_thingHasMass = False}
 
 -- Move a thing in a direction
 moveThingRight, moveThingLeft, moveThingDown, moveThingUp :: Thing -> Thing
@@ -59,47 +67,41 @@ moveThingUp    = moveThingUpBy 1
 
 -- move a thing in a direction by a positive amount
 moveThingRightBy, moveThingLeftBy, moveThingDownBy, moveThingUpBy :: CInt -> Thing -> Thing
-moveThingRightBy x = mapThingTile (moveR x)
-moveThingLeftBy  x = mapThingTile (moveL x)
-moveThingDownBy  y = mapThingTile (moveD y)
-moveThingUpBy    y = mapThingTile (moveU y)
+moveThingRightBy x = over thingTile (moveTileR x)
+moveThingLeftBy  x = over thingTile (moveTileL x)
+moveThingDownBy  y = over thingTile (moveTileD y)
+moveThingUpBy    y = over thingTile (moveTileU y)
 
 -- move a thing in both axis
 moveThingBy :: V2 CInt -> Thing -> Thing
 moveThingBy (V2 x y) thing = moveThingDownBy y . moveThingRightBy x $ thing
 
--- map a function across a things tile
-mapThingTile :: (Tile -> Tile) -> Thing -> Thing
-mapThingTile f thing = thing{_thingTile = f . _thingTile $ thing}
-
-thingTile :: Thing -> Tile
-thingTile = _thingTile
 
 -- Try and move a thing in a direction. Left => validation function failed and velocity in that direction is nullified
 tryMoveThingRight,tryMoveThingLeft,tryMoveThingDown,tryMoveThingUp :: Thing -> (Tile -> Bool) -> Either Thing Thing
 tryMoveThingRight thing isValid =
   let thing' = moveThingRight thing
-     in if isValid . _thingTile $ thing'
+     in if isValid $ thing'^.thingTile
           then Right thing'
-          else Left $ mapVelocity nullX thing
+          else Left $ over thingVelocity nullX thing
 
 tryMoveThingLeft thing isValid =
   let thing' = moveThingLeft thing
-     in if isValid . _thingTile $ thing'
+     in if isValid $ thing'^.thingTile
           then Right thing'
-          else Left $ mapVelocity nullX thing
+          else Left $ over thingVelocity nullX thing
 
 tryMoveThingDown thing isValid =
   let thing' = moveThingDown thing
-     in if isValid . _thingTile $ thing'
+     in if isValid $ thing'^.thingTile
           then Right thing'
-          else Left $ mapVelocity nullY thing
+          else Left $ over thingVelocity nullY thing
 
 tryMoveThingUp thing isValid =
   let thing' = moveThingUp thing
-     in if isValid . _thingTile $ thing'
+     in if isValid $ thing'^.thingTile
           then Right thing'
-          else Left $ mapVelocity nullY thing
+          else Left $ over thingVelocity nullY thing
 
 
 tryMoveThingBy :: V2 CInt -> Thing -> (Tile -> Bool) -> Thing
@@ -130,22 +132,17 @@ tryMoveThingBy (V2 x y) thing isValid = interleaveStateful (abs x) (abs y) thing
 
 -- Does a tile collide with a Thing?
 collidesThing :: Tile -> Thing -> Bool
-collidesThing t0 thing = let t1 = _thingTile thing in
-  and [_isSolid thing
-      ,posX t0               < (posX t1 + radius t1)
-      ,(posX t0 + radius t0) > posX t1
-      ,posY t0               < (posY t1 + radius t1)
-      ,(posY t0 + radius t0) > posY t1
+collidesThing t0 thing = let t1 = thing^.thingTile in
+  and [thing^.thingIsSolid
+      ,t0^.tileL < t1^.tileR
+      ,t0^.tileR > t1^.tileL
+      ,t0^.tileT < t1^.tileB
+      ,t0^.tileB > t1^.tileT
       ]
 
 collidesThings :: Tile -> [Thing] -> Bool
 collidesThings t0 = any (collidesThing t0)
 
-mapVelocity :: (Velocity -> Velocity) -> Thing -> Thing
-mapVelocity f thing = thing{_velocity = f . _velocity $ thing}
-
-setVelocity :: Velocity -> Thing -> Thing
-setVelocity v thing = thing{_velocity = v}
 
 {- Utils -}
 
@@ -184,7 +181,7 @@ iterateStateful a st fa = case fa a st of
 -- Apply a force to a thing, changing its velocity if it has mass.
 applyForceThing :: Force -> Thing -> Thing
 applyForceThing (Force (V2 aX aY)) thing =
-  if _hasMass thing
-    then mapVelocity (\(Velocity (V2 vX vY)) -> Velocity $ V2 (vX + aX) (vY + aY)) thing
+  if thing^.thingHasMass
+    then over thingVelocity (\(Velocity (V2 vX vY)) -> Velocity $ V2 (vX + aX) (vY + aY)) thing
     else thing
 
