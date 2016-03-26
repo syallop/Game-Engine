@@ -11,9 +11,9 @@ module Game.Background
   ,backgroundHeight
   ) where
 
-import SDL
-import Foreign.C.Types
 import Control.Lens
+import Foreign.C.Types
+import SDL
 
 import Game.Tiles
 

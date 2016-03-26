@@ -14,10 +14,10 @@ module Game.Agent
   where
 
 import Control.Lens
+import Data.Maybe
 import Foreign.C.Types
 import Linear hiding (trace)
 import Linear.Affine
-import Data.Maybe
 import qualified Data.Map as Map
 
 -- Something an agent may decide to do

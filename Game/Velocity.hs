@@ -13,8 +13,8 @@ module Game.Velocity
   )
   where
 
-import Linear
 import Foreign.C.Types
+import Linear
 
 newtype Velocity = Velocity {_vel :: V2 CInt}
   deriving (Show,Eq,Num)

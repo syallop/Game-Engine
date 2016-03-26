@@ -29,16 +29,16 @@ module Game.Camera
   ,cameraTrackSubject
   ) where
 
+import Control.Lens
 import Foreign.C.Types
 import Linear hiding (trace)
 import Linear.Affine
 import SDL
-import Control.Lens
 
-import Game.Tile
-import Game.Thing
-import Game.Tiles
 import Game.Stage
+import Game.Thing
+import Game.Tile
+import Game.Tiles
 
 import Debug.Trace
 

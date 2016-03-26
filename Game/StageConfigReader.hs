@@ -1,38 +1,41 @@
-{-# LANGUAGE GADTs, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE
+    GADTs
+  , OverloadedStrings
+  , TupleSections
+  #-}
 module Game.StageConfigReader where
 
 import Game.ConfigReader
-import Game.ConfigReader.Config
-import Game.ConfigReader.ConfigFmt
 import Game.ConfigReader.Arg
 import Game.ConfigReader.ArgFmt
+import Game.ConfigReader.Config
+import Game.ConfigReader.ConfigFmt
 import Game.ConfigReader.Option
 import Game.ConfigReader.OptionFmt
-
-import Game.Tile
-import Game.Tiles
-import Game.Thing
-import Game.Stage
-import Game.Velocity
-import Game.Force
-import Game.Background
-import Game.Agent
 
 import Game.ThingConfigReader
 import Game.TileConfigReader
 
-import SDL
-import Foreign.C.Types
-import Linear hiding (trace)
+import Game.Agent
+import Game.Background
+import Game.Force
+import Game.Stage
+import Game.Thing
+import Game.Tile
+import Game.Tiles
+import Game.Velocity
 
+import Control.Applicative
 import Control.Lens
 import Data.Maybe
 import Data.Monoid
 import Data.Text hiding (filter,foldr,map,zip)
-import Control.Applicative
-import qualified Data.Map as Map
+import Foreign.C.Types
+import Linear hiding (trace)
+import SDL
 import Text.Megaparsec
 import Text.Megaparsec.Text
+import qualified Data.Map as Map
 
 import Debug.Trace
 

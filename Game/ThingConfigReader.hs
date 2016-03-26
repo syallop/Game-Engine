@@ -1,11 +1,15 @@
-{-# LANGUAGE GADTs, TupleSections, OverloadedStrings #-}
+{-# LANGUAGE
+    GADTs
+  , TupleSections
+  , OverloadedStrings
+  #-}
 module Game.ThingConfigReader where
 
 import Game.ConfigReader
-import Game.ConfigReader.Config
-import Game.ConfigReader.ConfigFmt
 import Game.ConfigReader.Arg
 import Game.ConfigReader.ArgFmt
+import Game.ConfigReader.Config
+import Game.ConfigReader.ConfigFmt
 import Game.ConfigReader.Option
 import Game.ConfigReader.OptionFmt
 
@@ -15,14 +19,13 @@ import Game.Velocity
 import Game.Thing
 import Game.Counter
 
-import Linear
-import Linear.Affine (Point(..))
-import Foreign.C.Types
-
+import Control.Applicative
 import Data.Maybe
 import Data.Monoid
 import Data.Text hiding (filter,foldr)
-import Control.Applicative
+import Foreign.C.Types
+import Linear
+import Linear.Affine (Point(..))
 import qualified Data.Map as Map
 
 thingConfigFmt :: ConfigFmt

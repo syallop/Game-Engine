@@ -26,19 +26,19 @@ module Game.Stage
   )
   where
 
-import SDL
-import Linear
-import Foreign.C.Types
 import Control.Arrow
 import Control.Lens
+import Foreign.C.Types
+import Linear
+import SDL
 
+import Game.Agent
+import Game.Background
+import Game.Force
+import Game.Thing
 import Game.Tile
 import Game.Tiles
-import Game.Background
-import Game.Thing
 import Game.Velocity
-import Game.Force
-import Game.Agent
 
 import Debug.Trace
 

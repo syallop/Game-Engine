@@ -45,13 +45,12 @@ module Game.Tile
   )
   where
 
-import SDL
-import Linear
-import Linear.Affine
+import Control.Lens
 import Foreign.C.Types
 import GHC.Word
-
-import Control.Lens
+import Linear
+import Linear.Affine
+import SDL
 
 -- Alias for a vector of RGBA
 type TileColor = V4 Word8
@@ -61,7 +60,6 @@ redC   = _x
 greenC = _y
 blueC  = _z
 alphaC = _x
-
 
 -- TileColors for convenience
 white,black,red,green,blue :: TileColor
@@ -96,7 +94,6 @@ instance Show Tile where
     ColorTile r c   -> "ColorTile " ++ show r ++ " " ++ show c
     TextureTile r t -> "TextureTile " ++ show r
     InvisibleTile r -> "InvisibleTile " ++ show r
-
 
 makeLenses ''Tile
 

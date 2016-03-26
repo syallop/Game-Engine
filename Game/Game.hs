@@ -1,35 +1,36 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE
+    OverloadedStrings
+  , PatternSynonyms
+  , ScopedTypeVariables
+  , TemplateHaskell
+  #-}
 module Main where
 
-import Control.Monad
-import SDL
-import Linear (V2(..),V4(..))
-import Linear.Affine (Point(..))
-import Foreign.C.Types
-import GHC.Word
 import Control.Applicative
 import Control.Lens hiding (cons,uncons)
-
-import qualified Data.Map as M
-import Data.Maybe
+import Control.Monad
 import Data.Char
 import Data.List
+import Data.Maybe
 import Data.Text as T hiding (replicate,foldr,map,toLower,length)
+import Foreign.C.Types
+import GHC.Word
+import Linear (V2(..),V4(..))
+import Linear.Affine (Point(..))
+import SDL
+import qualified Data.Map as M
 
-import Game.Tile
-import Game.Tiles
-import Game.Thing
-import Game.Stage
 import Game.Background
 import Game.Camera
-import Game.Velocity
 import Game.Force
-import Game.TileConfigReader
-import Game.ThingConfigReader
+import Game.Stage
 import Game.StageConfigReader
+import Game.Thing
+import Game.ThingConfigReader
+import Game.Tile
+import Game.TileConfigReader
+import Game.Tiles
+import Game.Velocity
 
 import Debug.Trace
 

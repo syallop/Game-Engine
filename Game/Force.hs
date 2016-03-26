@@ -11,9 +11,9 @@ module Game.Force
   )
   where
 
-import Linear
-import Foreign.C.Types
 import Data.Coerce
+import Foreign.C.Types
+import Linear
 
 import Game.Velocity
 

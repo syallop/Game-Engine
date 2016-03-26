@@ -25,18 +25,16 @@ module Game.Thing
   )
   where
 
-import Foreign.C.Types
-
-import Linear
+import Game.Counter
+import Game.Force
 import Game.Tile
 import Game.Velocity
-import Game.Force
-import Game.Counter
-
-import Data.Map
-import Data.Text hiding (any)
 
 import Control.Lens
+import Data.Map
+import Data.Text hiding (any)
+import Foreign.C.Types
+import Linear
 
 -- A _thing_ with a drawable tile
 data Thing = Thing
