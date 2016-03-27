@@ -18,7 +18,6 @@ module Game.Stage
   ,stageBackgroundImage
   ,stageUnitSize
 
-  {-,applyVelocitySubject-}
   ,tickStage
 
   ,applyForceSubject
@@ -136,59 +135,47 @@ applyVelocitySubject ticks stg =
                                                 (stg^.stageSubject)
                                                 (not . collidesAnything stg)) stg
 
-
-  {-stg{_stageSubject = tryMoveThingBy ((* (V2 ticks ticks)) . _vel . _thingVelocity . _stageSubject $ stg)-}
-                                {-(stg^.stageSubject)-}
-                                {-(not . collidesAnything stg)-}
-     {-}-}
-
 -- Apply velocity to the things by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
 -- Only checks collision with the background, not the subject or other things.
 applyVelocityThings :: (Show t,Ord t) => CInt -> Stage t -> Stage t
-applyVelocityThings ticks stg =
-  stg{_stageThings = map (first applyVelocityThing) (_stageThings stg)
-     }
+applyVelocityThings ticks stg = over stageThings (map (first applyVelocityThing)) stg
   where
     applyVelocityThing :: Thing -> Thing
-    applyVelocityThing thing = tryMoveThingBy ((* (V2 ticks ticks)) . _vel . _thingVelocity $ thing) thing (not . collidesStageBackground stg)
+    applyVelocityThing thing = tryMoveThingBy ((* (V2 ticks ticks)) $ thing^.thingVelocity.vel) thing (not . collidesStageBackground stg)
 
 -- Apply acceleration due to gravity to the subject
 applyGravitySubject :: Stage t -> Stage t
-applyGravitySubject stg = applyForceSubject (_stageGravity stg) stg
+applyGravitySubject stg = applyForceSubject (stg^.stageGravity) stg
 
 -- apply gravity to all of the Things
 applyGravityThings :: Stage t -> Stage t
-applyGravityThings stg =
-  stg{_stageThings = map (first $ applyForceThing (_stageGravity stg)) (_stageThings stg)
-     }
+applyGravityThings stg = over stageThings (map (first $ applyForceThing (stg^.stageGravity))) stg
 
 -- Apply a force to a subject to change its velocity
 applyForceSubject :: Force -> Stage t -> Stage t
-applyForceSubject force stg =
-  stg{_stageSubject = applyForceThing force $ _stageSubject stg
-     }
+applyForceSubject force = over stageSubject (applyForceThing force)
 
 -- Apply force to a subject, only if it is making contact with a solid object in the opposite
 -- direction with which to 'push' off of.
 pushForceSubject :: (Show t,Ord t) => Force -> Stage t -> Stage t
-pushForceSubject force stg
-  | collidesStageBackground stg (_thingTile . moveThingBy (V2 x y) $ stg^.stageSubject) = applyForceSubject force stg
+pushForceSubject f stg
+  | collidesStageBackground stg (view thingTile . moveThingBy (V2 x y) $ stg^.stageSubject) = applyForceSubject f stg
   | otherwise = stg
 
   where
-    x = if isPositive $ xComponent force then -1 else 1
-    y = if isPositive $ yComponent force then -1 else 1
+    x = if isPositive $ f^.xComponent then -1 else 1
+    y = if isPositive $ f^.yComponent then -1 else 1
 
     isPositive = (>= 0)
 
 -- reduce the subjects velocity if it has exceeded the limit
 applySpeedLimitSubject :: Stage t -> Stage t
-applySpeedLimitSubject stg = stg{_stageSubject = over thingVelocity (limitVelocity (_stageSpeedLimit stg)) (_stageSubject stg)}
+applySpeedLimitSubject stg = stageSubject.thingVelocity%~limitVelocity (stg^.stageSpeedLimit) $ stg
 
 -- Reduce all things velocity if it has exceeded the limit
 applySpeedLimitThings :: Stage t -> Stage t
-applySpeedLimitThings stg = stg{_stageThings = map (first (applySpeedLimitThing (_stageSpeedLimit stg))) (_stageThings stg)}
+applySpeedLimitThings stg = stageThings.traverse._1.thingVelocity%~limitVelocity (stg^.stageThingSpeedLimit) $ stg
   where
     applySpeedLimitThing :: V2 CInt -> Thing -> Thing
     applySpeedLimitThing l = over thingVelocity (limitVelocity l)
@@ -197,18 +184,14 @@ applySpeedLimitThings stg = stg{_stageThings = map (first (applySpeedLimitThing 
 applyFrictionSubject :: (Show t,Ord t) => Stage t -> Stage t
 applyFrictionSubject stg
   -- Standing on a tile
-  | collidesStageBackground stg (_thingTile $ moveThingBy (V2 0 1) $ stg^.stageSubject) = applyForceSubject (opposeX 2 $ stg^.stageSubject.thingVelocity) stg
-
+  | collidesStageBackground stg (stg^.stageSubject.to (moveThingBy (V2 0 1)).thingTile) = applyForceSubject (stg^.stageSubject.thingVelocity.to (opposeX 2)) stg
 
   -- Less air friction
-  | otherwise = applyForceSubject (opposeX 1 $ stg^.stageSubject.thingVelocity) stg
+  | otherwise = applyForceSubject (stg^.stageSubject.thingVelocity.to (opposeX 1)) stg
 
 -- Update each thing by its corresponding agent
 applyThingsAgents :: Stage t -> Stage t
-applyThingsAgents stg =
-  let things  = _stageThings stg
-      things' = map (\(t,a) -> (applyThingAgent (t,a) stg,a)) things
-     in stg{_stageThings = things'}
+applyThingsAgents stg = stageThings.traverse %~ (\(t,a) -> (applyThingAgent (t,a) stg,a)) $ stg
 
 -- Ask a things agent what to do with a thing, then do it.
 applyThingAgent :: (Thing,Agent) -> Stage t -> Thing
@@ -218,11 +201,7 @@ applyThingAgent (thing,agent) stg =
                    ,_observeAgentHealth    = 3
                    ,_observePlayerHealth   = 3
                    }
-  {-let ob = Observe {_observeAgentPosition  = (\t -> V2 (posX t) (posY t)) . _thingTile $ thing-}
-                   {-,_observePlayerPosition = (\t -> V2 (posX t) (posY t)) . _thingTile . _subject $ stg-}
-                   {-,_observeAgentHealth    = 3-}
-                   {-,_observePlayerHealth   = 3-}
-                   {-}-}
+
       actions = observe ob agent
      in foldr applyActionThing thing actions
 

@@ -34,11 +34,11 @@ applyForce (Force (V2 dX dY)) (Velocity (V2 x y)) = Velocity $ V2 (x + dX) (y + 
 applyForces :: [Force] -> Velocity -> Velocity
 applyForces fs = applyForce (sumForce fs)
 
-xComponent :: Force -> CInt
-xComponent (Force (V2 x _)) = x
+xComponent :: Lens' Force CInt
+xComponent = lens (view (force._x)) (flip (set (force._x)))
 
-yComponent :: Force -> CInt
-yComponent (Force (V2 _ y)) = y
+yComponent :: Lens' Force CInt
+yComponent = lens (view (force._y)) (flip (set (force._y)))
 
 -- Create a force opposing a velocity in the X dimension with magnitude
 opposeX :: CInt -> Velocity -> Force

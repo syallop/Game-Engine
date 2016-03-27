@@ -43,17 +43,12 @@ import Game.Tiles
 import Debug.Trace
 
 data Camera = Camera
-  {_cameraPanX           :: CInt
-  ,_cameraPanY           :: CInt
+  {_cameraPan            :: Point V2 CInt
 
-  ,_cameraWidth          :: CInt
-  ,_cameraHeight         :: CInt
+  ,_cameraDimensions     :: V2 CInt
 
   -- Hard boundaries the camera will not move past
-  ,_cameraBoundaryLeft   :: CInt
-  ,_cameraBoundaryRight  :: CInt
-  ,_cameraBoundaryUp     :: CInt
-  ,_cameraBoundaryDown   :: CInt
+  ,_cameraBoundaries     :: V4 CInt
 
   ,_cameraTrackSubject   :: Bool
   }
@@ -61,24 +56,48 @@ data Camera = Camera
 
 makeLenses ''Camera
 
+cameraPanX :: Lens' Camera CInt
+cameraPanX = cameraPan._x
+
+cameraPanY :: Lens' Camera CInt
+cameraPanY = cameraPan._y
+
+cameraWidth :: Lens' Camera CInt
+cameraWidth = cameraDimensions._x
+
+cameraHeight :: Lens' Camera CInt
+cameraHeight = cameraDimensions._y
+
+cameraBoundaryLeft :: Lens' Camera CInt
+cameraBoundaryLeft = cameraBoundaries._x
+
+cameraBoundaryRight :: Lens' Camera CInt
+cameraBoundaryRight = cameraBoundaries._y
+
+cameraBoundaryUp :: Lens' Camera CInt
+cameraBoundaryUp = cameraBoundaries._z
+
+cameraBoundaryDown :: Lens' Camera CInt
+cameraBoundaryDown = cameraBoundaries._w
+
 -- Convert a position relative to the world top-left to a position relative to the cameras
 -- top-left
 worldToCamera :: Point V2 CInt -> Camera -> Point V2 CInt
-worldToCamera (P (V2 x y)) c = P $ V2 (x - _cameraPanX c) (y - _cameraPanY c)
+worldToCamera (P (V2 x y)) c = P $ V2 (x - c^.cameraPanX) (y - c^.cameraPanY)
 
-cameraToWorld :: V2 CInt -> Camera -> V2 CInt
-cameraToWorld (V2 x y) c = V2 (x + (_cameraPanX c)) (y + (_cameraPanY c))
+cameraToWorld :: Point V2 CInt -> Camera -> Point V2 CInt
+cameraToWorld (P (V2 x y)) c = P $ V2 (x + (c^.cameraPanX)) (y + (c^.cameraPanY))
 
 
--- pan an amount in a direction 
+-- pan an amount in a direction
 -- ignores boundaries
 panRightBy,panLeftBy,panDownBy,panUpBy :: CInt -> Camera -> Camera
-panRightBy d c = let x' = (_cameraPanX c) + d in c{_cameraPanX = x'}
-panLeftBy  d c = let x' = (_cameraPanX c) - d in c{_cameraPanX = x'}
-panDownBy  d c = let y' = (_cameraPanY c) + d in c{_cameraPanY = y'}
-panUpBy    d c = let y' = (_cameraPanY c) - d in c{_cameraPanY = y'}
+panRightBy = over cameraPanX . (+)
+panLeftBy  = over cameraPanX . flip (-)
+panDownBy  = over cameraPanY . (+)
+panUpBy    = over cameraPanY . flip (-)
 
--- pan a single unit in a direction 
+-- pan a single unit in a direction
 -- ignores boundaries
 panRight,panLeft,panUp,panDown :: Camera -> Camera
 panRight = panRightBy 1
@@ -87,10 +106,8 @@ panDown  = panDownBy  1
 panUp    = panUpBy    1
 
 -- pan to an exact point in the world
-panTo :: V2 CInt -> Camera -> Camera
-panTo (V2 x y) c = c{_cameraPanX = x
-                    ,_cameraPanY = y
-                    }
+panTo :: Point V2 CInt -> Camera -> Camera
+panTo = set cameraPan
 
 -- pan to the bottom edge of the background tiles
 {-panBottomEdge :: Camera -> Camera-}
@@ -131,34 +148,30 @@ panTo (V2 x y) c = c{_cameraPanX = x
 
 -- Pan as close as is allowed to the given point
 -- (I.E. will end up at boundaries if they are exceeded)
-panTowards :: V2 CInt -> Camera -> Camera
+panTowards :: Point V2 CInt -> Camera -> Camera
 panTowards p c = panTo (closestPan p c) c
 
 -- Return the position closest to the desired pan point
 -- (I.E. x and y will either be as requested or the nearest border they are
 -- past)
-closestPan :: V2 CInt -> Camera -> V2 CInt
-closestPan (V2 x y) c = V2 (closestPanX x c) (closestPanY y c)
+closestPan :: Point V2 CInt -> Camera -> Point V2 CInt
+closestPan (P (V2 x y)) c = P $ V2 (closestPanX x c) (closestPanY y c)
 
 -- Return the X point closest to the desired pan point
 -- (I.E. either the left or right boundary or the given point)
 closestPanX :: CInt -> Camera -> CInt
-closestPanX x c =
-  if x < (_cameraBoundaryLeft c)
-    then _cameraBoundaryLeft c
-    else if (_cameraBoundaryRight c) < x
-           then _cameraBoundaryRight c
-           else x
+closestPanX x c
+  | x                      < c^.cameraBoundaryLeft = c^.cameraBoundaryLeft
+  | c^.cameraBoundaryRight < x                     = c^.cameraBoundaryRight
+  | otherwise                                      = x
 
 -- Return the Y point closest to the desired pan point
 -- (I.E. either the top or bottom boundary or the given point)
 closestPanY :: CInt -> Camera -> CInt
-closestPanY y c =
-  if y < (_cameraBoundaryUp c)
-    then _cameraBoundaryUp c
-    else if (_cameraBoundaryDown c) < y
-           then _cameraBoundaryDown c
-           else y
+closestPanY y c
+  | y                     < c^.cameraBoundaryUp = c^.cameraBoundaryUp
+  | c^.cameraBoundaryDown < y                   = c^.cameraBoundaryDown
+  | otherwise = y
 
 
 
@@ -166,7 +179,7 @@ closestPanY y c =
 -- - frame dimensions
 -- - absolute boundaries
 mkCamera :: V2 CInt -> V4 CInt -> Maybe Camera
-mkCamera (V2 width height) (V4 bL bR bU bD) = Just $ Camera 0 0 width height bL bR bU bD True
+mkCamera dim boundaries = Just $ Camera (P $ V2 0 0) dim boundaries True
 
 -- shoot a frame of the scene, the background, the subject, any actors and props adjusted
 -- for the cameras pan
@@ -177,30 +190,28 @@ shoot c renderer stage = do
   -- Get the subject tile and attempt to pan to it
   let subjectTile = stage^.stageSubject.thingTile
   let (P (V2 subjectX subjectY)) = subjectTile^.tilePos
-      c' = if _cameraTrackSubject c
+      c' = if c^.cameraTrackSubject
              then panLeftBy (3 * stage^.stageUnitSize)
-                  . panUpBy (_cameraHeight c - ((3 * stage^.stageUnitSize) + (stage^.stageSubject.thingTile.tileHeight)) )
-                  . panTowards (V2 subjectX subjectY) $ c
+                  . panUpBy (c^.cameraHeight - ((3 * stage^.stageUnitSize) + (stage^.stageSubject.thingTile.tileHeight)) )
+                  . panTowards (P $ V2 subjectX subjectY) $ c
              else c
 
 
   -- render a possible background image
   case stage^.stageBackgroundImage of
     Nothing                -> return ()
-    Just backgroundTexture -> copy renderer backgroundTexture Nothing $ Just (Rectangle (P $ V2 0 0) (V2 (_cameraWidth c') (_cameraHeight c')))
+    Just backgroundTexture -> copy renderer backgroundTexture Nothing $ Just (Rectangle (P $ V2 0 0) (V2 (c'^.cameraWidth) (c'^.cameraHeight)))
 
   -- render the background that falls within the frame
-  renderTiles (V2 (_cameraPanX c') (_cameraPanY c'))
-              (_cameraWidth c',_cameraHeight c')
+  renderTiles (V2 (c'^.cameraPanX) (c'^.cameraPanY))
+              (c'^.cameraWidth,c'^.cameraHeight)
               renderer
               (stage^.stageBackgroundTiles)
 
   -- render the subject within the frame
   renderTile renderer $ over tilePos (`worldToCamera` c') subjectTile
-             {-(mapPos (`worldToCamera` c') subjectTile)-}
 
   -- render the 'Thing's
-  {-mapM_ (renderTile renderer . mapPos (`worldToCamera` c') . thingTile) (map fst . things $ stage)-}
   mapM_ (\thing -> renderTile renderer $ over tilePos (`worldToCamera` c') $ thing^.thingTile) (map fst $ stage^.stageThings)
 
   present renderer
@@ -208,10 +219,5 @@ shoot c renderer stage = do
 -- Set the camera boundaries.
 -- TODO: Consider what to do if the pan is outside the new boundaries
 setBoundaries :: V4 CInt -> Camera -> Camera
-setBoundaries (V4 l r u d) c = c
-  {_cameraBoundaryLeft  = l
-  ,_cameraBoundaryRight = r
-  ,_cameraBoundaryUp    = u
-  ,_cameraBoundaryDown  = d
-  }
+setBoundaries = set cameraBoundaries
 

@@ -150,58 +150,23 @@ tileBR = lens (\t -> (t^.tileTL) + (P $ V2 (t^.tileWidth) (t^.tileHeight))) (\t 
 -- Move a tile right and down by the given offset
 moveTile :: V2 CInt -> Tile -> Tile
 moveTile o = tilePos+~P o
-{-move (V2 dx dy) = moveD dy . moveR dx-}
 
 -- move a tile right
 moveTileR :: CInt -> Tile -> Tile
 moveTileR r = tilePos+~(P $ V2 r 0)
-{-moveR d t = t{_tileRectangle-}
-                  {-= let Rectangle (P (V2 x y)) r = _tileRectangle t-}
-                       {-in Rectangle (P (V2 (x+d) y)) r-}
-             {-}-}
 
 -- move a tile left
 moveTileL :: CInt -> Tile -> Tile
 moveTileL l = moveTileR (-1*l)
-{-moveL d t = t{_tileRectangle-}
-                  {-= let Rectangle (P (V2 x y)) r = _tileRectangle t-}
-                       {-in Rectangle (P (V2 (x-d) y)) r-}
-             {-}-}
 
 -- move a tile down
 moveTileD :: CInt -> Tile -> Tile
 moveTileD d = tilePos+~(P $ V2 0 d)
-{-moveD d t = t{_tileRectangle-}
-                  {-= let Rectangle (P (V2 x y)) r = _tileRectangle t-}
-                       {-in Rectangle (P (V2 x (y+d))) r-}
-             {-}-}
 
 -- move a tile up
 moveTileU :: CInt -> Tile -> Tile
 moveTileU u = moveTileD (-1* u)
-{-moveU d t = t{_tileRectangle-}
-                  {-= let Rectangle (P (V2 x y)) r = _tileRectangle t-}
-                       {-in Rectangle (P (V2 x (y-d))) r-}
-             {-}-}
 
-
--- set the color of a tile
-{-setColor :: TileColor -> Tile -> Tile-}
-{-setColor c t = t{_tileColor = c}-}
-
--- set the radius of a tile
-{-setRadius :: CInt -> Tile -> Tile-}
-{-setRadius r t = t{_tileRectangle-}
-                      {-= let Rectangle p _ = _tileRectangle t-}
-                           {-in Rectangle p (V2 r r)-}
-                 {-}-}
-
-{-mapPos :: (Point V2 CInt -> Point V2 CInt) -> Tile -> Tile-}
-{-mapPos = over tilePos-}
-
-{-mapPos f t = t{_tileRectangle = let Rectangle (P p) r = _tileRectangle t-}
-                                   {-in Rectangle (P $ f p) r-}
-              {-}-}
 
 -- the default tile is at (0,0) has a radius of 1 and is white
 defaultTile :: Tile

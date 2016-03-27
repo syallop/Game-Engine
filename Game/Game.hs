@@ -68,7 +68,7 @@ initialGame renderer width height = do
       boundaryBottom = tilesHeight rows * tileSize
 
   --todo pan bottom edge
-  let panSubjectTL   = panTo (V2 0 (backgroundHeight (stage0^.stageBackground) - height))
+  let panSubjectTL   = panTo (P $ V2 0 (backgroundHeight (stage0^.stageBackground) - height))
   let initialCamera  = panSubjectTL $ fromJust
                                     $ mkCamera (V2 width height)
                                                (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
@@ -215,16 +215,15 @@ runCommand c g = case c of
 
 -- Render a step of the game state
 stepGame :: (Window,Renderer) -> Game -> IO (Bool,Game)
-stepGame (window,renderer) game = if _gameQuit game then return (True,game) else do
+stepGame (window,renderer) game = if game^.gameQuit then return (True,game) else do
   -- Screen to white
   rendererDrawColor renderer $= white
 
   -- Update the stage
-  let stage' = tickStage (_gameTickDelta game) (_gameStage game)
-      game'  = game{_gameStage = stage'}
+  let game' = set gameStage (tickStage (game^.gameTickDelta) (game^.gameStage)) game
 
   -- Shoot a frame of the game
-  shoot (_gameCamera game') renderer stage'
+  shoot (game'^.gameCamera) renderer (game'^.gameStage)
 
   return (False,game')
 
@@ -310,10 +309,10 @@ safeIndex (x:xs) n
 tickDelta :: Game -> IO Game
 tickDelta g = do
   total <- ticks
-  let last  = _gameLastTicks g
+  let last  = g^.gameLastTicks
       delta = total - last
   return $ g{_gameLastTicks = total
-            ,_gameTickDelta = (word32ToCInt delta) `div` 10
+            ,_gameTickDelta = word32ToCInt delta `div` 10
             }
 
 word32ToCInt :: Word32 -> CInt
