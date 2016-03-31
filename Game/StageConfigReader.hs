@@ -15,6 +15,8 @@ import Game.ConfigReader.OptionFmt
 
 import Game.ThingConfigReader
 import Game.TileConfigReader
+import Game.TileGridConfigReader
+import Game.TileSetConfigReader
 
 import Game.Agent
 import Game.Background
@@ -22,7 +24,8 @@ import Game.Force
 import Game.Stage
 import Game.Thing
 import Game.Tile
-import Game.Tiles
+import Game.TileGrid
+import Game.TileSet
 import Game.Velocity
 
 import Control.Applicative
@@ -89,14 +92,8 @@ thingInstanceConfigFmt = ConfigFmt
                   ,DefaultFmt False       [])
   ]
 
-aliasConfigFmt :: ConfigFmt
-aliasConfigFmt = ConfigFmt
-  [(OptionPairFmt (OptionFmt "aliasFor" [SomeArgFmt ArgFmtText])
-                  (OptionFmt "reserved" [])
-                  ,DefaultFmt False [])
-  ]
 
-type Stages = Map.Map Text (Stage Text)
+type Stages = Map.Map Text Stage
 
 -- given a path to a directory of stage directories, load all the stages
 parseStages :: FilePath -> Renderer -> IO Stages
@@ -111,7 +108,7 @@ parseStages stagesPath renderer = do
   mStages <- mapM (\stageDir -> (pack . name $ stageDir,) <$> parseStage stageDir stagesPath renderer) stageDirectories
 
   -- silently drop all where the stage failed to parse
-  let stages :: [(Text,Stage Text)]
+  let stages :: [(Text,Stage)]
       stages = foldr (\(name,mStage) acc -> case mStage of
                                               Nothing    -> acc
                                               Just stage -> (name,stage):acc
@@ -122,7 +119,7 @@ parseStages stagesPath renderer = do
   return $ Map.fromList stages
 
 -- given a path to a stage directory, load all its dependencies and assemble the stage.
-parseStage :: FilePath -> FilePath -> Renderer -> IO (Maybe (Stage Text))
+parseStage :: FilePath -> FilePath -> Renderer -> IO (Maybe Stage)
 parseStage stageDir stagesPath renderer = do
   res <- parseConfigFile stageConfigFmt (stagesPath ++ "/" ++ stageDir ++ "/stage")
   case res of
@@ -210,79 +207,19 @@ parseStage stageDir stagesPath renderer = do
     conv :: Int -> CInt
     conv = toEnum . fromEnum
 
-parseBackground :: FilePath -> TileSet Text -> Aliases -> CInt -> Renderer -> IO (Maybe (Background Text))
+parseBackground :: FilePath -> TileSet -> Aliases -> CInt -> Renderer -> IO (Maybe Background )
 parseBackground stagePath tileset aliases unitSize renderer = do
   mTexture <- loadTexture renderer (stagePath ++ "/background.bmp")
-  mTiles <- parseTilesLayout stagePath tileset aliases unitSize
-  case mTiles of
+  mTileGrid <- parseTileGrid stagePath tileset aliases unitSize
+  case mTileGrid of
     -- failed to parse tiles, abort!
     -- TODO: could instead create empty tiles?
     --  - Only if layout file isnt present, not if its just invalid
     Nothing
       -> return Nothing
 
-    Just tiles
-      -> return . mkBackground tiles $ Just mTexture
-
-type Aliases = Map.Map Text Alias
-type Alias   = Maybe Text
-
--- Given a path to a directory of alias files and a tileset that may contain tileInfo that
--- is aliased, parse the Aliases
--- Note: Unspecified aliases are considered to be reserved words.
--- NAME.alias => the alias name
--- the contained "aliasFor" option specifies the TileInfo name aliased to
-parseAliases :: TileSet Text -> FilePath -> IO Aliases
-parseAliases tileset stagePath = do
-  files <- listDirectory stagePath
-
-  -- Get the files with a ".alias" extension
-  let aliasFiles = filter ((== "alias") . extension) files
-
-  -- Associate the NAME of all alias files to their parsed alias
-  -- mAliases :: [(Text,Maybe (Maybe Text))]
-  mAliases <- mapM (\aliasFile -> (pack . name $ aliasFile,) <$> parseAlias tileset aliasFile stagePath) aliasFiles
-
-  -- Silently drop all where the config file failed to parse
-  let aliases :: [(Text,Maybe Text)]
-      aliases = foldr (\(name,mAlias) acc -> case mAlias of
-                                               Nothing    -> acc
-                                               Just alias -> (name,alias):acc
-                      )
-                      []
-                      mAliases
-
-  return $ Map.fromList aliases
-
--- Given a tileset to make aliases to, an alias file to parse under a stage filepath,
--- parse the alias, ensuring it exists in the tileset.
---
--- Nothing => Failure.
--- Just Nothing => Reserved
--- Just Just t => Correct alias
-parseAlias :: TileSet Text -> FilePath -> FilePath -> IO (Maybe Alias)
-parseAlias tileset aliasFile stagePath = do
-  res <- parseConfigFile aliasConfigFmt (stagePath ++ "/" ++ aliasFile)
-  case res of
-    -- Failed to parse alias file
-    Left _
-      -> return Nothing
-
-    Right aliasConfig
-      -> if isSet "aliasFor" aliasConfig
-           -- Alias is given, extract the aliased tilename
-           then case getArgs "aliasFor" aliasConfig of
-                  [SomeArg (ArgText tileName)]
-                    -> if Map.member tileName tileset
-                         -- Alias corresponds to tilename
-                         then return $ Just $ Just tileName
-
-                         -- Aliased tilename doesnt exist
-                         else return Nothing
-                  _ -> error "Didnt parse as claimed"
-
-           -- Alias is reserved
-           else return $ Just Nothing
+    Just tileGrid
+      -> return . mkBackground tileGrid $ Just mTexture
 
 -- Given a set of base things which may be inherited from and a path to a directory of thing instance files,
 -- parse each thing instance file and instantiate the base thing with the given configuration options.
@@ -363,55 +300,4 @@ parseThingInstance baseThings thingInstanceFile stagePath = do
   where
     conv :: Int -> CInt
     conv = toEnum . fromEnum
-
--- Given a path to the stage directory containing a layout file,
--- parse the layout into a 'Tiles' where the format of the file is newline separated
--- rows of space separated names. Where names are first looked up in the tileset,
--- and if not found are looked up in the given aliases. The resulting name is the base name, not any alias that was used.
--- PARTIAL: All (used) aliases must be in the tileset names
-parseTilesLayout :: FilePath -> TileSet Text -> Aliases -> CInt -> IO (Maybe (Tiles Text))
-parseTilesLayout stagePath tileset aliases unitSize = do
-  let names   = Map.keys tileset
-      aliasMap :: Map.Map Text Text
-      aliasMap = Map.fromList $ Map.foldrWithKey (\alias mV acc -> case mV of
-                                                                     -- name is reserved
-                                                                     Nothing -> acc
-                                                                     Just n  -> (alias,n):acc
-                                                 )
-                                                 []
-                                                 aliases
-
-  res <- parseFromFile (tilesP names aliasMap tileset unitSize) (stagePath ++ "/layout")
-  case res of
-    -- Failed to parse layout file
-    Left _
-      -> return Nothing
-
-    Right mTiles
-      -> return mTiles
-
-
-tilesP :: [Text] -> Map.Map Text Text -> TileSet Text -> CInt -> Parser (Maybe (Tiles Text))
-tilesP names aliasMap tileset unitSize = mkTiles <$> rowsP names aliasMap <*> pure tileset <*> pure unitSize
-
-rowsP :: [Text] -> Map.Map Text Text -> Parser (Rows Text)
-rowsP names aliasMap = Rows <$> many (rowP names aliasMap <* newline)
-
-rowP :: [Text] -> Map.Map Text Text -> Parser (Row Text)
-rowP names aliasMap = (\r rs -> Row (r:rs)) <$> nameP names aliasMap <*> many (tileSepP *> nameP names aliasMap)
-
--- parse one of a tile name. Otherwise, parse a alias name. Return the base, unaliased name
-nameP :: [Text] -> Map.Map Text Text -> Parser Text
-nameP ns aliasMap =  regularNameP ns
-                 <|> aliasNameP aliasMap
-
-regularNameP :: [Text] -> Parser Text
-regularNameP = (pack <$>) . choice . map (string' . unpack)
-
-aliasNameP :: Map.Map Text Text -> Parser Text
-aliasNameP aliasMap = do
-  a <- regularNameP (Map.keys aliasMap)
-  return . fromJust . Map.lookup a $ aliasMap
-
-tileSepP = skipSome (choice [string' " ",string' "\t"])
 

@@ -35,10 +35,11 @@ import Linear hiding (trace)
 import Linear.Affine
 import SDL
 
+import Game.Background
 import Game.Stage
 import Game.Thing
 import Game.Tile
-import Game.Tiles
+import Game.TileGrid
 
 import Debug.Trace
 
@@ -183,30 +184,33 @@ mkCamera dim boundaries = Just $ Camera (P $ V2 0 0) dim boundaries True
 
 -- shoot a frame of the scene, the background, the subject, any actors and props adjusted
 -- for the cameras pan
-shoot :: Ord t => Camera -> Renderer -> Stage t -> IO ()
+shoot :: Camera -> Renderer -> Stage -> IO ()
 shoot c renderer stage = do
   clear renderer
+
+  let unitSize      = stage^.stageBackground.backgroundTileGrid.tileGridUnitSize
+      subjectHeight = stage^.stageSubject.thingTile.tileHeight
 
   -- Get the subject tile and attempt to pan to it
   let subjectTile = stage^.stageSubject.thingTile
   let (P (V2 subjectX subjectY)) = subjectTile^.tilePos
       c' = if c^.cameraTrackSubject
-             then panLeftBy (3 * stage^.stageUnitSize)
-                  . panUpBy (c^.cameraHeight - ((3 * stage^.stageUnitSize) + (stage^.stageSubject.thingTile.tileHeight)) )
+             then panLeftBy (3 * unitSize)
+                  . panUpBy (c^.cameraHeight - ((3 * unitSize) + subjectHeight) )
                   . panTowards (P $ V2 subjectX subjectY) $ c
              else c
 
 
   -- render a possible background image
-  case stage^.stageBackgroundImage of
+  case stage^.stageBackground.backgroundImage of
     Nothing                -> return ()
     Just backgroundTexture -> copy renderer backgroundTexture Nothing $ Just (Rectangle (P $ V2 0 0) (V2 (c'^.cameraWidth) (c'^.cameraHeight)))
 
   -- render the background that falls within the frame
-  renderTiles (V2 (c'^.cameraPanX) (c'^.cameraPanY))
-              (c'^.cameraWidth,c'^.cameraHeight)
-              renderer
-              (stage^.stageBackgroundTiles)
+  renderTileGrid (P $ V2 (c'^.cameraPanX) (c'^.cameraPanY))
+                 (V2 (c'^.cameraWidth) (c'^.cameraHeight))
+                 renderer
+                 (stage^.stageBackground.backgroundTileGrid)
 
   -- render the subject within the frame
   renderTile renderer $ over tilePos (`worldToCamera` c') subjectTile

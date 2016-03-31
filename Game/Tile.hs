@@ -7,12 +7,15 @@ module Game.Tile
   ,redC,greenC,blueC,alphaC
   ,white,black,red,green,blue
 
+  ,TileType(..)
+  ,tileTypeColor
+  ,tileTypeIsSolid
+  ,tileTypeTexture
+  ,loadTileTypeTextured
+
   ,Tile()
+  ,mkTile
   ,defaultTile
-  ,colorTile
-  ,textureTile
-  ,loadTextureTile
-  ,invisibleTile
 
   ,tilePos
   ,tilePosX
@@ -30,9 +33,6 @@ module Game.Tile
   ,tileTR
   ,tileBL
   ,tileBR
-
-  ,tileColor
-  ,tileTexture
 
   ,moveTile
   ,moveTileR
@@ -69,33 +69,53 @@ red   = V4 maxBound minBound minBound maxBound
 green = V4 minBound maxBound minBound maxBound
 blue  = V4 minBound minBound maxBound maxBound
 
--- A square with either a color or a texture
-data Tile
+instance Show Texture where
+  show _ = "TEXTURE"
 
-  -- A rectangle with a color
-  = ColorTile
-    {_tileRectangle :: Rectangle CInt
-    ,_tileColor     :: TileColor
+data TileType
+  = TileTypeColored
+    {_tileTypeColor   :: TileColor
+    ,_tileTypeIsSolid :: Bool
     }
 
-  -- A rectangle with a texture
-  | TextureTile
-    {_tileRectangle :: Rectangle CInt
-    ,_tileTexture   :: Texture
+  | TileTypeTextured
+    {_tileTypeTexture :: Texture
+    ,_tileTypeIsSolid :: Bool
     }
 
-  | InvisibleTile
-    {_tileRectangle :: Rectangle CInt
+  | TileTypeInvisible
+    {_tileTypeIsSolid :: Bool
     }
-  deriving Eq
+  deriving (Eq,Show)
+makeLenses ''TileType
 
-instance Show Tile where
-  show t = case t of
-    ColorTile r c   -> "ColorTile " ++ show r ++ " " ++ show c
-    TextureTile r t -> "TextureTile " ++ show r
-    InvisibleTile r -> "InvisibleTile " ++ show r
+-- load a new texture into a textured tiletype
+loadTileTypeTextured :: Bool -> FilePath -> Renderer -> IO TileType
+loadTileTypeTextured isSolid texPath renderer = loadTexture renderer texPath >>= return . (`TileTypeTextured` isSolid)
 
+-- Load a BMP texture from a file
+loadTexture :: Renderer -> FilePath -> IO Texture
+loadTexture renderer fp = do
+  surface <- loadBMP fp
+  texture <- createTextureFromSurface renderer surface
+  freeSurface surface
+  return texture
+
+data Tile = Tile
+  {_tileType      :: TileType
+  ,_tileRectangle :: Rectangle CInt
+  }
+  deriving (Eq,Show)
 makeLenses ''Tile
+
+-- Create a TileType at a position.
+mkTile :: TileType -> Rectangle CInt -> Tile
+mkTile = Tile
+
+-- A non-solid, white,1by1 tile at 0,0
+defaultTile :: Tile
+defaultTile = mkTile (TileTypeColored white False) (Rectangle (P $ V2 0 0) (V2 1 1))
+
 
 rectPos :: Lens' (Rectangle a) (Point V2 a)
 rectPos = lens (\(Rectangle p s) -> p) (\(Rectangle p0 s) p1 -> Rectangle p1 s)
@@ -146,7 +166,6 @@ tileBL = lens (\t -> (t^.tileTL) + (P $ V2 0 (t^.tileHeight))) (\t bl -> tilePos
 tileBR :: Lens' Tile (Point V2 CInt)
 tileBR = lens (\t -> (t^.tileTL) + (P $ V2 (t^.tileWidth) (t^.tileHeight))) (\t br -> tilePos .~ (br - (P $ V2 (t^.tileWidth) (t^.tileHeight))) $ t)
 
-
 -- Move a tile right and down by the given offset
 moveTile :: V2 CInt -> Tile -> Tile
 moveTile o = tilePos+~P o
@@ -167,46 +186,16 @@ moveTileD d = tilePos+~(P $ V2 0 d)
 moveTileU :: CInt -> Tile -> Tile
 moveTileU u = moveTileD (-1* u)
 
-
--- the default tile is at (0,0) has a radius of 1 and is white
-defaultTile :: Tile
-defaultTile = ColorTile (Rectangle (P $ V2 0 0) (V2 1 1)) white
-
 -- draw a tile
 renderTile :: Renderer -> Tile -> IO ()
-renderTile renderer t = case t of
-  ColorTile r c
-    -> do rendererDrawColor renderer $= _tileColor t
-          fillRect renderer $ Just r
+renderTile renderer t = case t^.tileType of
+  TileTypeTextured tex _
+    -> copy renderer tex Nothing $ Just $ t^.tileRectangle
 
-  TextureTile r t
-    -> copy renderer t Nothing $ Just r
+  TileTypeColored color _
+    -> do rendererDrawColor renderer $= color
+          fillRect renderer $ Just $ t^.tileRectangle
 
-  InvisibleTile r
+  TileTypeInvisible _
     -> return ()
-    -- -> drawRect renderer $ Just r
-
--- create a ColorTile with a color posiiton and radius
-colorTile :: TileColor -> Point V2 CInt -> CInt -> Tile
-colorTile color pos radius = ColorTile (Rectangle pos (V2 radius radius)) color
-
--- create an invisible tile with a position and radius
-invisibleTile :: Point V2 CInt -> CInt -> Tile
-invisibleTile pos radius = InvisibleTile (Rectangle pos (V2 radius radius))
-
--- load a bmp texture from a file and create a texture tile with a position and radius
-loadTextureTile :: Renderer -> FilePath -> Point V2 CInt -> CInt -> IO Tile
-loadTextureTile renderer fp pos radius = loadTexture renderer fp >>= \tex -> return $ textureTile tex pos radius
-
--- create a TextureTile with a texture, position and radius
-textureTile :: Texture -> Point V2 CInt -> CInt -> Tile
-textureTile texture pos radius = TextureTile (Rectangle pos (V2 radius radius)) texture
-
--- Load a BMP texture from a file
-loadTexture :: Renderer -> FilePath -> IO Texture
-loadTexture renderer fp = do
-  surface <- loadBMP fp
-  texture <- createTextureFromSurface renderer surface
-  freeSurface surface
-  return texture
 

@@ -29,7 +29,8 @@ import Game.Thing
 import Game.ThingConfigReader
 import Game.Tile
 import Game.TileConfigReader
-import Game.Tiles
+import Game.TileGrid
+import Game.TileSet
 import Game.Velocity
 
 import Debug.Trace
@@ -37,9 +38,9 @@ import Debug.Trace
 data Game = Game
   {_gameQuit      :: Bool
 
-  ,_gameStage     :: Stage Text -- the current stage
-  ,_gameStageIx   :: Int        -- the current stage ix in stages
-  ,_gameStages    :: Stages     -- all the possible stages
+  ,_gameStage     :: Stage  -- the current stage
+  ,_gameStageIx   :: Int    -- the current stage ix in stages
+  ,_gameStages    :: Stages -- all the possible stages
 
   ,_gameCamera    :: Camera
   ,_gamePanSpeed  :: CInt
@@ -52,7 +53,7 @@ data Game = Game
 makeLenses ''Game
 
 initialGame :: Renderer -> CInt -> CInt -> IO Game
-initialGame renderer width height = do
+initialGame renderer frameWidth frameHeight = do
   let quit     = False
 
   -- Load a stage
@@ -60,17 +61,16 @@ initialGame renderer width height = do
   let stage0     = (!! 0) . M.elems $ stages
 
   -- Boundaries the camera should not move past
-  let tileSize = stage0^.stageBackgroundTiles.tilesUnitSize
-      rows     = stage0^.stageBackgroundTiles.tilesRows
+  let tileGrid = stage0^.stageBackground.backgroundTileGrid
       boundaryLeft   = 0
-      boundaryRight  = tilesWidth rows * tileSize
+      boundaryRight  = tileGridWidth tileGrid
       boundaryTop    = 0
-      boundaryBottom = tilesHeight rows * tileSize
+      boundaryBottom = tileGridHeight tileGrid
 
   --todo pan bottom edge
-  let panSubjectTL   = panTo (P $ V2 0 (backgroundHeight (stage0^.stageBackground) - height))
+  let panSubjectTL   = panTo (P $ V2 0 (tileGridHeight tileGrid - frameHeight))
   let initialCamera  = panSubjectTL $ fromJust
-                                    $ mkCamera (V2 width height)
+                                    $ mkCamera (V2 frameWidth frameHeight)
                                                (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
   return $ Game quit stage0 0 stages initialCamera 1 0 1
@@ -79,13 +79,11 @@ initialGame renderer width height = do
 -- and set it.
 inferCameraBoundaries :: Game -> Game
 inferCameraBoundaries g =
-  let stage    = g^.gameStage
-      tileSize = stage^.stageBackgroundTiles.tilesUnitSize
-      rows     = stage^.stageBackgroundTiles.tilesRows
+  let tileGrid = g^.gameStage.stageBackground.backgroundTileGrid
       l = 0
-      r = tilesWidth rows * tileSize
+      r = tileGridWidth tileGrid
       u = 0
-      d = tilesHeight rows * tileSize
+      d = tileGridHeight tileGrid
       boundaries = V4 l r u d
     in over gameCamera (setBoundaries boundaries) g
 

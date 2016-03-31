@@ -13,19 +13,21 @@ import Game.ConfigReader.ConfigFmt
 import Game.ConfigReader.Option
 import Game.ConfigReader.OptionFmt
 
-import Game.Tile
-import Game.Tiles
-import Game.Velocity
-import Game.Thing
 import Game.Counter
+import Game.Thing
+import Game.Tile
+import Game.TileSet
+import Game.Velocity
 
 import Control.Applicative
+import Control.Lens
 import Data.Maybe
 import Data.Monoid
 import Data.Text hiding (filter,foldr)
 import Foreign.C.Types
 import Linear
 import Linear.Affine (Point(..))
+import SDL
 import qualified Data.Map as Map
 
 thingConfigFmt :: ConfigFmt
@@ -41,7 +43,7 @@ thingConfigFmt = ConfigFmt
 
 -- Given a path to a directory of thing files and a tileset the things may use,
 -- create the things!
-parseThings :: FilePath -> TileSet Text -> CInt -> IO Things
+parseThings :: FilePath -> TileSet -> CInt -> IO Things
 parseThings thingsPath tileset radius = do
   files <- listDirectory thingsPath
 
@@ -63,7 +65,7 @@ parseThings thingsPath tileset radius = do
 
   return $ Map.fromList things
 
-parseThing :: FilePath -> FilePath -> CInt -> TileSet Text -> IO (Maybe Thing)
+parseThing :: FilePath -> FilePath -> CInt -> TileSet -> IO (Maybe Thing)
 parseThing thingFile thingsPath radius tileset = do
   res <- parseConfigFile thingConfigFmt (thingsPath ++ "/" ++ thingFile)
   case res of
@@ -80,24 +82,24 @@ parseThing thingFile thingsPath radius tileset = do
 
                           -- no name given. "" is not returned by the parser so we can use it here
                           -- to denote no name until we figure out what to do about that
-                          else return ""
+                          else return "" :: IO Text
 
             let defaultPosition = P $ V2 0 0
 
             -- Attempt to load the named tile.
-            -- Cache against the info so we can inherit properties from the tile like solidness
-            let mTile :: Maybe (TileInfo,Tile)
-                mTile = case Map.lookup tileName tileset of
+            -- Cache against the tiletype so we can inherit properties from the tile like solidness
+            let mTile :: Maybe (TileType,Tile)
+                mTile = case lookupTileType tileName tileset of
                           -- Not found
                           Nothing
                             -- Because no name was specified. Use an invisible, non solid tile
-                            | tileName == "" -> Just $ (InfoInvisible False,invisibleTile defaultPosition radius)
+                            | tileName == "" -> Just (TileTypeInvisible False,mkTile (TileTypeInvisible False) (Rectangle defaultPosition (V2 radius radius)))
                             -- Because it doesnt exist in the tileset
                             | otherwise      -> Nothing
 
-                          -- tileInfo found, create an instance
-                          Just tileInfo
-                            -> Just (tileInfo,tileInfoInstance tileInfo defaultPosition radius)
+                          -- tiletype found, create an instance
+                          Just tileType
+                            -> Just (tileType,mkTile tileType (Rectangle defaultPosition (V2 radius radius)))
 
             -- If we managed to create a tile, build the thing from the config options
             -- and the properties of the tile.
@@ -106,8 +108,8 @@ parseThing thingFile thingsPath radius tileset = do
               Nothing
                 -> return Nothing
 
-              Just (tileInfo,tile)
-                -> let isSolid         = _tileInfoIsSolid tileInfo
+              Just (tileType,tile)
+                -> let isSolid         = tileType^.tileTypeIsSolid
                        hasMass         = isSet "mass" thingConfig
                        defaultVelocity = Velocity (V2 0 0)
                        defaultCounter  = fromJust $ mkCounter 3 0 3
