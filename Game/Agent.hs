@@ -19,6 +19,12 @@ import Foreign.C.Types
 import Linear hiding (trace)
 import Linear.Affine
 import qualified Data.Map as Map
+import Game.Thing
+
+data Agent = Agent
+  {_rules :: Rules
+  }
+  deriving (Eq,Show)
 
 -- Something an agent may decide to do
 data Action
@@ -27,6 +33,7 @@ data Action
   | Jump
   | And Action Action
   | Or Action Action
+  | Spawn Thing Agent
   deriving (Eq,Show)
 
 -- Something which may trigger an agent to do something
@@ -52,7 +59,6 @@ data Observe = Observe
   ,_observeAgentHealth    :: CInt
   ,_observePlayerHealth   :: CInt
   }
-
 makeLenses ''Observe
 
 -- List of actions which triggered
@@ -95,10 +101,6 @@ doesTrigger o t = case t of
     cIntToCFloat :: CInt -> CFloat
     cIntToCFloat = fromIntegral
 
-data Agent = Agent
-  {_rules :: Rules
-  }
-  deriving (Eq,Show)
 
 mkAgent :: Rules -> Maybe Agent
 mkAgent = Just . Agent
@@ -117,8 +119,6 @@ observe o a = triggerActions o (_rules a)
 -- under player => jump
 exAgent :: Agent
 exAgent = fromJust $ mkAgent $ Map.fromList
-  {-[(DistanceLess 128,Jump)-}
-  {-]-}
   [(DistanceLess 256 `AndT` PlayerLeft,WalkLeft)
   ,(DistanceLess 256 `AndT` PlayerRight,WalkRight)
   ]

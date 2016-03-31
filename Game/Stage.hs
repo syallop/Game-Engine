@@ -185,35 +185,49 @@ applyFrictionSubject stg
 
 -- Update each thing by its corresponding agent
 applyThingsAgents :: Stage -> Stage
-applyThingsAgents stg = stageThings.traverse %~ (\(t,a) -> (applyThingAgent (t,a) stg,a)) $ stg
+applyThingsAgents stg =
+  let newThings = concatMap (\(thing,agent) -> let ((thing1,agent1),newThings) = applyThingAgent (thing,agent) (ob thing)
+                                                  in (thing1,agent1):newThings
+                            )
+                            (stg^.stageThings)
+     in set stageThings newThings stg
+  where
+    ob thing = Observe {_observeAgentPosition  = thing^.thingTile.tilePos
+                       ,_observePlayerPosition = stg^.stageSubject.thingTile.tilePos
+                       ,_observeAgentHealth    = 3
+                       ,_observePlayerHealth   = 3
+                       }
 
--- Ask a things agent what to do with a thing, then do it.
-applyThingAgent :: (Thing,Agent) -> Stage -> Thing
-applyThingAgent (thing,agent) stg =
-  let ob = Observe {_observeAgentPosition  = thing^.thingTile.tilePos
-                   ,_observePlayerPosition = stg^.stageSubject.thingTile.tilePos
-                   ,_observeAgentHealth    = 3
-                   ,_observePlayerHealth   = 3
-                   }
+-- Ask a things agent what to do with a thing under the stage.
+-- Return a list of things and agents as the result of doing it.
+applyThingAgent :: (Thing,Agent) -> Observe -> ((Thing,Agent),[(Thing,Agent)])
+applyThingAgent (thing,agent) ob = foldr (\action ((thing0,agent0),newThings0)
+                                           -> let ((thing1,agent1),newThings1) = applyActionThing action (thing0,agent0)
+                                                 in ((thing1,agent1),newThings0++newThings1)
+                                         )
+                                         ((thing,agent),[])
+                                         (observe ob agent)
 
-      actions = observe ob agent
-     in foldr applyActionThing thing actions
-
--- Apply a single action to a thing
-applyActionThing :: Action -> Thing -> Thing
-applyActionThing a t = case a of
+-- Apply a single action to a thing, returning an updated thing and agent, alongside a list of things and agents to spawn
+applyActionThing :: Action -> (Thing,Agent) -> ((Thing,Agent),[(Thing,Agent)])
+applyActionThing action (thing,agent) = case action of
   WalkLeft
-    -> applyForceThing (Force $ V2 (-1) 0) t
+    -> ((applyForceThing (Force $ V2 (-1) 0) thing,agent),[])
 
   WalkRight
-    -> applyForceThing (Force $ V2 1 0) t
+    -> ((applyForceThing (Force $ V2 1 0) thing,agent),[])
 
   Jump
-    -> applyForceThing (Force $ V2 0 (-5)) t
+    -> ((applyForceThing (Force $ V2 0 (-5)) thing,agent),[])
+
+  Spawn newThing newAgent
+    -> ((thing,agent),[(newThing,newAgent)])
 
   And a1 a2
-    -> applyActionThing a2 . applyActionThing a1 $ t
+    -> let ((thing1,agent1),newThings1) = applyActionThing a1 (thing,agent)
+           ((thing2,agent2),newThings2) = applyActionThing a2 (thing1,agent1)
+          in ((thing2,agent2),newThings1 ++ newThings2)
 
   Or a1 a2
-    -> applyActionThing a1 t
+    -> applyActionThing a1 (thing,agent)
 
