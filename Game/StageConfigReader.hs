@@ -90,6 +90,14 @@ thingInstanceConfigFmt = ConfigFmt
                                           ])
                   (OptionFmt "stationary" [])
                   ,DefaultFmt False       [])
+
+  ,(OptionPairFmt (OptionFmt "width"        [SomeArgFmt ArgFmtInt])
+                  (OptionFmt "inheritWidth" [])
+                  ,DefaultFmt False         [])
+
+  ,(OptionPairFmt (OptionFmt "height"        [SomeArgFmt ArgFmtInt])
+                  (OptionFmt "inheritHeight" [])
+                  ,DefaultFmt False          [])
   ]
 
 
@@ -290,7 +298,27 @@ parseThingInstance baseThings thingInstanceFile stagePath = do
                                 -> return Nothing
 
                               Just baseThing
-                                -> return . Just . set thingVelocity (Velocity velocity) . moveThingBy positionOffset $ baseThing
+                                -> do let thingWidth :: CInt
+                                          thingWidth = if isSet "width" thingInstanceConfig
+                                                         then case getArgs "width" thingInstanceConfig of
+                                                                [SomeArg (ArgInt w)] -> conv w
+                                                                _                    -> error "Didnt parse as claimed"
+                                                         -- InheritWidth
+                                                         else baseThing^.thingTile.tileWidth
+
+                                          thingHeight :: CInt
+                                          thingHeight = if isSet "height" thingInstanceConfig
+                                                          then case getArgs "height" thingInstanceConfig of
+                                                                 [SomeArg (ArgInt h)] -> conv h
+                                                                 _                    -> error "Didnt parse as claimed"
+                                                          -- InheritHeight
+                                                          else trace (show thingName ++ " no height") $ baseThing^.thingTile.tileHeight
+
+                                      return . Just . set thingVelocity (Velocity velocity)
+                                                    . set (thingTile.tileWidth) thingWidth
+                                                    . set (thingTile.tileHeight) thingHeight
+                                                    . moveThingBy positionOffset
+                                                    $ baseThing
 
 
                   _
