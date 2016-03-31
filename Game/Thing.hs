@@ -6,6 +6,7 @@ module Game.Thing
   ,thingHasMass
   ,thingVelocity
   ,thingHealth
+  ,thingHitBox
 
   ,setMass
   ,setMassless
@@ -18,6 +19,7 @@ module Game.Thing
 
   ,collidesThing
   ,collidesThings
+  ,effectiveThingHitBox
 
   ,applyForceThing
 
@@ -27,10 +29,12 @@ module Game.Thing
 
 import Game.Counter
 import Game.Force
+import Game.HitBox
 import Game.Tile
 import Game.Velocity
 
 import Control.Lens
+import Data.Function
 import Data.Map
 import Data.Text hiding (any)
 import Foreign.C.Types
@@ -43,6 +47,7 @@ data Thing = Thing
   ,_thingHasMass  :: Bool
   ,_thingVelocity :: Velocity
   ,_thingHealth   :: Counter
+  ,_thingHitBox   :: HitBox
   }
   deriving (Eq,Show)
 
@@ -76,33 +81,33 @@ moveThingBy (V2 x y) thing = moveThingDownBy y . moveThingRightBy x $ thing
 
 
 -- Try and move a thing in a direction. Left => validation function failed and velocity in that direction is nullified
-tryMoveThingRight,tryMoveThingLeft,tryMoveThingDown,tryMoveThingUp :: Thing -> (Tile -> Bool) -> Either Thing Thing
+tryMoveThingRight,tryMoveThingLeft,tryMoveThingDown,tryMoveThingUp :: Thing -> (Thing -> Bool) -> Either Thing Thing
 tryMoveThingRight thing isValid =
   let thing' = moveThingRight thing
-     in if isValid $ thing'^.thingTile
+     in if isValid thing'
           then Right thing'
           else Left $ over thingVelocity nullX thing
 
 tryMoveThingLeft thing isValid =
   let thing' = moveThingLeft thing
-     in if isValid $ thing'^.thingTile
+     in if isValid thing'
           then Right thing'
           else Left $ over thingVelocity nullX thing
 
 tryMoveThingDown thing isValid =
   let thing' = moveThingDown thing
-     in if isValid $ thing'^.thingTile
+     in if isValid thing'
           then Right thing'
           else Left $ over thingVelocity nullY thing
 
 tryMoveThingUp thing isValid =
   let thing' = moveThingUp thing
-     in if isValid $ thing'^.thingTile
+     in if isValid thing'
           then Right thing'
           else Left $ over thingVelocity nullY thing
 
 
-tryMoveThingBy :: V2 CInt -> Thing -> (Tile -> Bool) -> Thing
+tryMoveThingBy :: V2 CInt -> Thing -> (Thing -> Bool) -> Thing
 tryMoveThingBy (V2 x y) thing isValid = interleaveStateful (abs x) (abs y) thing fx fy
   where
     fx :: CInt -> Thing -> Either (Thing,CInt) Thing
@@ -116,7 +121,7 @@ tryMoveThingBy (V2 x y) thing isValid = interleaveStateful (abs x) (abs y) thing
 
     -- Apply a movement function to a thing, n times supporting early failure.
     -- E.G. if we hit a wall with 5 steps to go, theres no need to try another 5 times.
-    step :: (Thing -> (Tile -> Bool) -> Either Thing Thing) -> CInt -> Thing -> Either (Thing,CInt) Thing
+    step :: (Thing -> (Thing -> Bool) -> Either Thing Thing) -> CInt -> Thing -> Either (Thing,CInt) Thing
     step _ 0 thing         = Right thing
     step moveF delta thing = case moveF thing isValid of
                                  -- Failed to move => Done recursing
@@ -128,19 +133,13 @@ tryMoveThingBy (V2 x y) thing isValid = interleaveStateful (abs x) (abs y) thing
                                    -> Left (thing',delta-1)
 
 
--- Does a tile collide with a Thing?
-collidesThing :: Tile -> Thing -> Bool
-collidesThing t0 thing = let t1 = thing^.thingTile in
-  and [thing^.thingIsSolid
-      ,t0^.tileL < t1^.tileR
-      ,t0^.tileR > t1^.tileL
-      ,t0^.tileT < t1^.tileB
-      ,t0^.tileB > t1^.tileT
-      ]
+-- Do two things collide?
+collidesThing :: Thing -> Thing -> Bool
+collidesThing = on collidesHitBox effectiveThingHitBox
 
-collidesThings :: Tile -> [Thing] -> Bool
-collidesThings t0 = any (collidesThing t0)
-
+-- Does a thing collide with a list of things?
+collidesThings :: Thing -> [Thing] -> Bool
+collidesThings = any . collidesThing
 
 {- Utils -}
 
@@ -182,4 +181,24 @@ applyForceThing (Force (V2 aX aY)) thing =
   if thing^.thingHasMass
     then over thingVelocity (\(Velocity (V2 vX vY)) -> Velocity $ V2 (vX + aX) (vY + aY)) thing
     else thing
+
+-- Calculate the hitbox, taking into account our solidity and offset in the world, as tracked in the tile.
+-- A solid thing with no set hitbox will use the tile boundaries
+effectiveThingHitBox :: Thing -> HitBox
+effectiveThingHitBox thing = case (thing^.thingHitBox,thing^.thingIsSolid) of
+  -- We have no HitBox but are solid. Use the tile as a hitbox
+  (NoHitBox,True)
+    -> tileToHitBox (thing^.thingTile)
+
+  -- We have no hitbox and we're non-solid
+  (NoHitBox,False)
+    -> NoHitBox
+
+  -- We have a hit box but we're set non-solid
+  (HitBoxRect _,False)
+    -> NoHitBox
+
+  -- We have a hit box and are solid, offset it
+  (HitBoxRect r,True)
+    -> HitBoxRect $ over rectPos (+ thing^.thingTile.tilePos) r
 

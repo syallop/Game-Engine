@@ -21,6 +21,7 @@ import Game.TileSetConfigReader
 import Game.Agent
 import Game.Background
 import Game.Force
+import Game.HitBox
 import Game.Stage
 import Game.Thing
 import Game.Tile
@@ -35,6 +36,7 @@ import Data.Monoid
 import Data.Text hiding (filter,foldr,map,zip)
 import Foreign.C.Types
 import Linear hiding (trace)
+import Linear.Affine
 import SDL
 import Text.Megaparsec
 import Text.Megaparsec.Text
@@ -98,6 +100,14 @@ thingInstanceConfigFmt = ConfigFmt
   ,(OptionPairFmt (OptionFmt "height"        [SomeArgFmt ArgFmtInt])
                   (OptionFmt "inheritHeight" [])
                   ,DefaultFmt False          [])
+
+  ,(OptionPairFmt (OptionFmt "hitbox"    [SomeArgFmt ArgFmtInt -- x
+                                         ,SomeArgFmt ArgFmtInt -- y
+                                         ,SomeArgFmt ArgFmtInt -- width
+                                         ,SomeArgFmt ArgFmtInt -- height
+                                         ])
+                  (OptionFmt "emptyHitBox"  [])
+                  ,DefaultFmt False      [])
   ]
 
 
@@ -290,6 +300,15 @@ parseThingInstance baseThings thingInstanceFile stagePath = do
                                               -- Stationary => no velocity
                                               else V2 0 0
 
+                           hitBox :: HitBox
+                           hitBox        = if isSet "hitbox" thingInstanceConfig
+                                             then case getArgs "hitbox" thingInstanceConfig of
+                                                    [SomeArg (ArgInt x),SomeArg (ArgInt y),SomeArg (ArgInt w),SomeArg (ArgInt h)]
+                                                      -> HitBoxRect (Rectangle (P $ V2 (conv x) (conv y)) (V2 (conv w) (conv h)))
+
+                                             -- no hitbox
+                                             else NoHitBox
+
                            mBaseThing = Map.lookup thingName baseThings
                          in -- If the base thing exists, inherit from it and modify by any config values
                             case mBaseThing of
@@ -312,11 +331,12 @@ parseThingInstance baseThings thingInstanceFile stagePath = do
                                                                  [SomeArg (ArgInt h)] -> conv h
                                                                  _                    -> error "Didnt parse as claimed"
                                                           -- InheritHeight
-                                                          else trace (show thingName ++ " no height") $ baseThing^.thingTile.tileHeight
+                                                          else baseThing^.thingTile.tileHeight
 
                                       return . Just . set thingVelocity (Velocity velocity)
                                                     . set (thingTile.tileWidth) thingWidth
                                                     . set (thingTile.tileHeight) thingHeight
+                                                    . set (thingHitBox) hitBox
                                                     . moveThingBy positionOffset
                                                     $ baseThing
 

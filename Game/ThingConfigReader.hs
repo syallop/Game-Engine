@@ -14,6 +14,7 @@ import Game.ConfigReader.Option
 import Game.ConfigReader.OptionFmt
 
 import Game.Counter
+import Game.HitBox
 import Game.Thing
 import Game.Tile
 import Game.TileSet
@@ -113,5 +114,5 @@ parseThing thingFile thingsPath radius tileset = do
                        hasMass         = isSet "mass" thingConfig
                        defaultVelocity = Velocity (V2 0 0)
                        defaultCounter  = fromJust $ mkCounter 3 0 3
-                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter
+                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter NoHitBox
 

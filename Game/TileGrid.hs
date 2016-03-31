@@ -20,6 +20,7 @@ module Game.TileGrid
   )
   where
 
+import Game.HitBox
 import Game.Tile
 import Game.TileSet
 
@@ -106,15 +107,15 @@ renderTileGrid topLeft (V2 frameWidth frameHeight) renderer tileGrid = do
          (tileGrid^.tileGridRows.rows)
 
 
--- Does a Tile collide with the TileGrid?
-collidesTileGrid :: Tile -> TileGrid -> Bool
-collidesTileGrid t tg = any (\ix -> maybe False (view tileTypeIsSolid) $ indexTileType ix tg) $ coversIndexes t tg
+-- Does a Hitbox collide with the TileGrid?
+collidesTileGrid :: HitBox -> TileGrid -> Bool
+collidesTileGrid hb tg = any (\ix -> maybe False (view tileTypeIsSolid) $ indexTileType ix tg) $ coversIndexes hb tg
 
--- List of tile indexes covered by a Tile in a TileGrid
-coversIndexes :: Tile -> TileGrid -> [V2 CInt]
-coversIndexes t tg = case coversIndexRange t tg of
+-- List of tile indexes covered by a HitBox in a TileGrid
+coversIndexes :: HitBox -> TileGrid -> [V2 CInt]
+coversIndexes hb tg = case coversIndexRange hb tg of
 
-  -- Tile isnt fully on the grid => Assume no collision
+  -- HitBox isnt fully on the grid => Assume no collision
   Nothing
     -> []
 
@@ -124,13 +125,14 @@ coversIndexes t tg = case coversIndexRange t tg of
 -- Which indexes in the TileGrid does a Tile cover
 -- Nothing if falls outside of the range
 -- The components 1,2 and 3,4 will always increase
-coversIndexRange :: Tile -> TileGrid -> Maybe (V4 CInt)
-coversIndexRange t tg = do
-  let tl = t^.tileTL
-      br = t^.tileBR
-  (V2 xLIx yTIx) <- posToIndex tl tg
-  (V2 xRIx yBIx) <- posToIndex br tg
-  return $ V4 xLIx xRIx yTIx yBIx
+coversIndexRange :: HitBox -> TileGrid -> Maybe (V4 CInt)
+coversIndexRange hb tg = do
+  V4 xLeft xRight yTop yBottom <- hitBoxBoundaries hb
+  V2 xLeftIx  yTopIx    <- posToIndex (P $ V2 xLeft  yTop)    tg
+  V2 xRightIx yBottomIx <- posToIndex (P $ V2 xRight yBottom) tg
+  return $ V4 xLeftIx xRightIx yTopIx yBottomIx
+
+
 
 -- Convert an absolute position to an index in the TileGrid
 posToIndex :: Point V2 CInt -> TileGrid -> Maybe (V2 CInt)

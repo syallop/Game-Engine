@@ -98,21 +98,23 @@ setSubjectTile :: Tile -> Stage -> Maybe Stage
 setSubjectTile tile stg =
   let tileGrid = stg^.stageBackground.backgroundTileGrid
       subject  = stg^.stageSubject
-     in if collidesTileGrid tile tileGrid
-        || collidesThings tile (map fst $ stg^.stageThings)
+      subject' = set thingTile tile subject
+     in if collidesTileGrid (effectiveThingHitBox subject') tileGrid
+        || collidesThings subject' (map fst $ stg^.stageThings)
+        {-|| collidesThings tile (map fst $ stg^.stageThings)-}
           then Nothing
-          else Just $ set (stageSubject.thingTile) tile stg
+          else Just $ set stageSubject subject' stg
 
 -- Does a tile collide with anything on the stage (EXCEPT the subject)?
-collidesAnything :: Stage -> Tile -> Bool
-collidesAnything stg tile = collidesStageBackgroundTileGrid stg tile
-                         || collidesStageThings     stg tile
+collidesAnything :: Stage -> Thing -> Bool
+collidesAnything stg thing = collidesStageBackgroundTileGrid stg thing
+                          || collidesStageThings             stg thing
 
-collidesStageBackgroundTileGrid :: Stage -> Tile -> Bool
-collidesStageBackgroundTileGrid stg tile = collidesTileGrid tile (stg^.stageBackground.backgroundTileGrid)
+collidesStageBackgroundTileGrid :: Stage -> Thing -> Bool
+collidesStageBackgroundTileGrid stg thing = collidesTileGrid (effectiveThingHitBox thing) (stg^.stageBackground.backgroundTileGrid)
 
-collidesStageThings :: Stage -> Tile -> Bool
-collidesStageThings stg tile = collidesThings tile (map fst $ stg^.stageThings)
+collidesStageThings :: Stage -> Thing -> Bool
+collidesStageThings stg thing = collidesThings thing (map fst $ stg^.stageThings)
 
 -- Apply velocity to the subject by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
@@ -130,7 +132,9 @@ applyVelocityThings :: CInt -> Stage -> Stage
 applyVelocityThings ticks stg = over stageThings (map (first applyVelocityThing)) stg
   where
     applyVelocityThing :: Thing -> Thing
-    applyVelocityThing thing = tryMoveThingBy ((* V2 ticks ticks) $ thing^.thingVelocity.vel) thing (not . collidesStageBackgroundTileGrid stg)
+    applyVelocityThing thing = tryMoveThingBy ((* V2 ticks ticks) $ thing^.thingVelocity.vel)
+                                              thing
+                                              (not . collidesStageBackgroundTileGrid stg . set thingIsSolid True) -- Force things to be considered solid against the background tiles
 
 -- Apply acceleration due to gravity to the subject
 applyGravitySubject :: Stage -> Stage
@@ -148,7 +152,7 @@ applyForceSubject force = over stageSubject (applyForceThing force)
 -- direction with which to 'push' off of.
 pushForceSubject :: Force -> Stage -> Stage
 pushForceSubject f stg
-  | collidesStageBackgroundTileGrid stg (view thingTile . moveThingBy (V2 x y) $ stg^.stageSubject) = applyForceSubject f stg
+  | collidesStageBackgroundTileGrid stg (moveThingBy (V2 x y) $ stg^.stageSubject) = applyForceSubject f stg
   | otherwise = stg
 
   where
@@ -172,7 +176,7 @@ applySpeedLimitThings stg = stageThings.traverse._1.thingVelocity%~limitVelocity
 applyFrictionSubject :: Stage -> Stage
 applyFrictionSubject stg
   -- Standing on a tile
-  | collidesStageBackgroundTileGrid stg (stg^.stageSubject.to (moveThingBy (V2 0 1)).thingTile)
+  | collidesStageBackgroundTileGrid stg (stg^.stageSubject.to (moveThingBy (V2 0 1)))
     = applyForceSubject (stg^.stageSubject.thingVelocity.to (opposeX 2)) stg
 
   -- Less air friction

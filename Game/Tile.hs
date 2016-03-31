@@ -42,8 +42,11 @@ module Game.Tile
 
   ,renderTile
   ,loadTexture
+  ,tileToHitBox
   )
   where
+
+import Game.HitBox
 
 import Control.Lens
 import Foreign.C.Types
@@ -115,14 +118,6 @@ mkTile = Tile
 -- A non-solid, white,1by1 tile at 0,0
 defaultTile :: Tile
 defaultTile = mkTile (TileTypeColored white False) (Rectangle (P $ V2 0 0) (V2 1 1))
-
-
-rectPos :: Lens' (Rectangle a) (Point V2 a)
-rectPos = lens (\(Rectangle p s) -> p) (\(Rectangle p0 s) p1 -> Rectangle p1 s)
-
-rectSize :: Lens' (Rectangle a) (V2 a)
-rectSize = lens (\(Rectangle p s) -> s) (\(Rectangle p s0) s1 -> Rectangle p s1)
-
 
 tilePos :: Lens' Tile (Point V2 CInt)
 tilePos = tileRectangle.rectPos
@@ -198,4 +193,7 @@ renderTile renderer t = case t^.tileType of
 
   TileTypeInvisible _
     -> return ()
+
+tileToHitBox :: Tile -> HitBox
+tileToHitBox t = HitBoxRect (t^.tileRectangle)
 
