@@ -33,8 +33,26 @@ data Action
   | Jump
   | And Action Action
   | Or Action Action
-  | Spawn Thing Agent
-  deriving (Eq,Show)
+  | Spawn (Observe -> (Thing,Agent))
+
+instance Show Action where
+  show a = case a of
+    WalkLeft  -> "WalkLeft"
+    WalkRight -> "WalkRight"
+    Jump      -> "Jump"
+    And a0 a1 -> "And " ++ show a0 ++ " " ++ show a1
+    Or a0 a1  -> "Or " ++ show a0 ++ " " ++ show a1
+    Spawn _   -> "Spawn"
+
+instance Eq Action where
+  a0 == a1 = case (a0,a1) of
+    (WalkLeft,WalkLeft)   -> True
+    (WalkRight,WalkRight) -> True
+    (Jump,Jump)           -> True
+    (And a0 a1,And a2 a3) -> a0 == a2 && a1 == a3
+    (Or a0 a1,Or a2 a3)   -> a0 == a2 && a1 == a3
+    (Spawn _,Spawn _)     -> True
+    _                     -> False
 
 -- Something which may trigger an agent to do something
 data Trigger
