@@ -45,8 +45,12 @@ data Stage = Stage
   ,_stageSubject         :: Subject
   ,_stageThings          :: [(Thing,Agent)]
   ,_stageGravity         :: Force
+
   ,_stageSpeedLimit      :: V2 CInt
   ,_stageThingSpeedLimit :: V2 CInt
+
+  ,_stageSubjectFriction :: CInt
+  ,_stageThingFriction   :: CInt
   }
   deriving (Eq,Show)
 
@@ -57,6 +61,7 @@ tickStage :: CInt -> Stage -> Stage
 tickStage dTicks
   = applyVelocityThings dTicks
   . applySpeedLimitThings
+  . applyFrictionThings
   . applyThingsAgents
   . applyGravityThings
 
@@ -67,8 +72,23 @@ tickStage dTicks
 
 -- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
-setStage :: Background -> Subject -> [(Thing,Agent)] -> Force -> V2 CInt -> V2 CInt -> Maybe Stage
-setStage b s things gravity subjectSpeedLimit thingSpeedLimit = Just $ Stage b s things gravity subjectSpeedLimit thingSpeedLimit
+setStage :: Background
+         -> Subject
+         -> [(Thing,Agent)]
+         -> Force
+         -> V2 CInt
+         -> V2 CInt
+         -> CInt
+         -> CInt
+         -> Maybe Stage
+setStage b
+         s
+         things
+         gravity
+         subjectSpeedLimit
+         thingSpeedLimit
+         subjectFriction
+         thingFriction     = Just $ Stage b s things gravity subjectSpeedLimit thingSpeedLimit subjectFriction thingFriction
 
 -- Move a subject in a direction if they do not collide with the background
 moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp :: Stage -> Maybe Stage
@@ -121,7 +141,7 @@ collidesStageThings stg thing = collidesThings thing (map fst $ stg^.stageThings
 -- Checks collision with the background and other things.
 applyVelocitySubject :: CInt -> Stage -> Stage
 applyVelocitySubject ticks stg =
-  over stageSubject (\subject -> tryMoveThingBy ((* (V2 ticks ticks)) $ stg^.stageSubject.thingVelocity.vel)
+  over stageSubject (\subject -> tryMoveThingBy ((* V2 ticks ticks) $ stg^.stageSubject.thingVelocity.vel)
                                                 (stg^.stageSubject)
                                                 (not . collidesAnything stg)) stg
 
@@ -168,20 +188,32 @@ applySpeedLimitSubject stg = stageSubject.thingVelocity%~limitVelocity (stg^.sta
 -- Reduce all things velocity if it has exceeded the limit
 applySpeedLimitThings :: Stage -> Stage
 applySpeedLimitThings stg = stageThings.traverse._1.thingVelocity%~limitVelocity (stg^.stageThingSpeedLimit) $ stg
-  where
-    applySpeedLimitThing :: V2 CInt -> Thing -> Thing
-    applySpeedLimitThing l = over thingVelocity (limitVelocity l)
 
 -- Apply friction to the subject
 applyFrictionSubject :: Stage -> Stage
 applyFrictionSubject stg
   -- Standing on a tile
   | collidesStageBackgroundTileGrid stg (stg^.stageSubject.to (moveThingBy (V2 0 1)))
-    = applyForceSubject (stg^.stageSubject.thingVelocity.to (opposeX 1)) stg
+    = applyForceSubject (stg^.stageSubject.thingVelocity.to (opposeX (stg^.stageSubjectFriction))) stg
 
   -- Less air friction
   | otherwise
     = applyForceSubject (stg^.stageSubject.thingVelocity.to (opposeX 1)) stg
+
+-- Apply friction to all things
+applyFrictionThings :: Stage -> Stage
+applyFrictionThings stg = stageThings.traverse._1%~applyFrictionThing (stg^.stageThingFriction) $ stg
+  where
+    applyFrictionThing :: CInt -> Thing -> Thing
+    applyFrictionThing l t
+      -- Standing on a tile
+      | collidesStageBackgroundTileGrid stg (stg^.stageSubject.to (moveThingBy (V2 0 1)))
+       = applyForceThing (t^.thingVelocity.to (opposeX l)) t
+
+      -- Air friction
+      | otherwise
+       = applyForceThing (t^.thingVelocity.to (opposeX 1)) t
+
 
 -- Update each thing by its corresponding agent
 applyThingsAgents :: Stage -> Stage
@@ -212,10 +244,10 @@ applyThingAgent (thing,agent) ob = foldr (\action ((thing0,agent0),newThings0)
 applyActionThing :: Observe -> Action -> (Thing,Agent) -> ((Thing,Agent),[(Thing,Agent)])
 applyActionThing ob action (thing,agent) = case action of
   WalkLeft
-    -> ((applyForceThing (Force $ V2 (-1) 0) thing,agent),[])
+    -> ((applyForceThing (Force $ V2 (-2) 0) thing,agent),[])
 
   WalkRight
-    -> ((applyForceThing (Force $ V2 1 0) thing,agent),[])
+    -> ((applyForceThing (Force $ V2 2 0) thing,agent),[])
 
   Jump
     -> ((applyForceThing (Force $ V2 0 (-5)) thing,agent),[])

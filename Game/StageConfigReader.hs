@@ -73,6 +73,15 @@ stageConfigFmt = ConfigFmt
   ,(OptionPairFmt (OptionFmt "thingSpeedLimit"      [SomeArgFmt ArgFmtInt, SomeArgFmt ArgFmtInt])
                   (OptionFmt "emptyThingSpeedLimit" [])
                   ,DefaultFmt False                 [])
+
+  ,(OptionPairFmt (OptionFmt "subjectFriction"      [SomeArgFmt ArgFmtInt])
+                  (OptionFmt "emptySubjectFriction" [])
+                  ,DefaultFmt False                 [])
+
+  ,(OptionPairFmt (OptionFmt "thingFriction"      [SomeArgFmt ArgFmtInt])
+                  (OptionFmt "emptyThingFriction" [])
+                  ,DefaultFmt False               [])
+
   ]
 
 thingInstanceConfigFmt :: ConfigFmt
@@ -196,6 +205,22 @@ parseStage stageDir stagesPath renderer = do
                         -- empty thing speed limit => default to... something too high!
                         else V2 100 100
 
+            let subjectFriction
+                   = if isSet "subjectFriction" stageConfig
+                       then case getArgs "subjectFriction" stageConfig of
+                              [SomeArg (ArgInt fr)] -> conv fr
+                              _ -> error "Didnt parse as claimed"
+                       -- empty subject friction => default to 1!
+                       else 1
+
+            let thingFriction
+                   = if isSet "thingFriction" stageConfig
+                       then case getArgs "thingFriction" stageConfig of
+                              [SomeArg (ArgInt fr)] -> conv fr
+                              _ -> error "Didnt parse as claimed"
+                       -- empty thing friction => default to 1!
+                       else 1
+
             -- Load the stages tileset
             tileset <- parseTileSet ("R/Tilesets/" ++ unpack tilesetName) renderer
 
@@ -220,7 +245,7 @@ parseStage stageDir stagesPath renderer = do
                 -> do mBackground <- parseBackground (stagesPath ++ "/" ++ stageDir) tileset aliases unitSize renderer
                       case mBackground of
                         Nothing         -> return Nothing
-                        Just background -> return $ setStage background player ((`zip` repeat exAgent) . Map.elems $ otherThings) gravity subjectSpeedLimit thingSpeedLimit
+                        Just background -> return $ setStage background player ((`zip` repeat exAgent) . Map.elems $ otherThings) gravity subjectSpeedLimit thingSpeedLimit subjectFriction thingFriction
   where
     conv :: Int -> CInt
     conv = toEnum . fromEnum
