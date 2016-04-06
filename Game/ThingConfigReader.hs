@@ -75,17 +75,8 @@ parseThing thingFile thingsPath radius tileset = do
       -> return Nothing
 
     Right thingConfig
-      -> do tileName <- if isSet "tile" thingConfig
-                          -- tile name is specified, extract the name
-                          then case getArgs "tile" thingConfig of
-                                   [SomeArg (ArgText tileName)] -> return tileName
-                                   _                            -> error "Didnt parse as claimed"
-
-                          -- no name given. "" is not returned by the parser so we can use it here
-                          -- to denote no name until we figure out what to do about that
-                          else return "" :: IO Text
-
-            let defaultPosition = P $ V2 0 0
+      -> do let tileName = fromArgs "tile" (\[SomeArg (ArgText tileName)] -> tileName) "" thingConfig
+                defaultPosition = P $ V2 0 0
 
             -- Attempt to load the named tile.
             -- Cache against the tiletype so we can inherit properties from the tile like solidness

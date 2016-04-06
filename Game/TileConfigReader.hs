@@ -64,14 +64,9 @@ parseTileType mTexture configFile tilesetPath = do
             let isSolid    = isSet "solid" tileConfig
             case mIOTexture of
               Nothing
-                -> if isSet "colored" tileConfig
-                     then case getArgs "colored" tileConfig of
-                            [SomeArg (ArgInt r), SomeArg (ArgInt g)
-                                               , SomeArg (ArgInt b)
-                                               , SomeArg (ArgInt a)
-                                               ] -> return $ Just $ TileTypeColored (V4 (conv r) (conv g) (conv b) (conv a)) isSolid
-                            _                    -> error "Didnt actually parse config correctly.."
-                     else return $ Just $ TileTypeInvisible isSolid
+                -> return $ Just $ fromArgs "colored" (\[SomeArg (ArgInt r),SomeArg (ArgInt g),SomeArg (ArgInt b), SomeArg (ArgInt a)] -> TileTypeColored (V4 (conv r) (conv g) (conv b) (conv a)) isSolid)
+                                                      (TileTypeInvisible isSolid)
+                                                      tileConfig
 
               Just ioTexture
                 -> do texture <- ioTexture

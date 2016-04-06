@@ -76,28 +76,15 @@ parseAliases tileset stagePath = do
 -- Just Nothing => Reserved
 -- Just Just t => Correct alias
 parseAlias :: TileSet -> FilePath -> FilePath -> IO (Maybe Alias)
-parseAlias tileset aliasFile stagePath = do
+parseAlias tileSet aliasFile stagePath = do
   res <- parseConfigFile aliasConfigFmt (stagePath ++ "/" ++ aliasFile)
-  case res of
+  return $ case res of
     -- Failed to parse alias file
     Left _
-      -> return Nothing
+      -> Nothing
 
     Right aliasConfig
-      -> if isSet "aliasFor" aliasConfig
-           -- Alias is given, extract the aliased tilename
-           then case getArgs "aliasFor" aliasConfig of
-                  [SomeArg (ArgText tileName)]
-                    -> if memberTileName tileName tileset
-                         -- Alias corresponds to tilename
-                         then return $ Just $ Just tileName
-
-                         -- Aliased tilename doesnt exist
-                         else return Nothing
-                  _ -> error "Didnt parse as claimed"
-
-           -- Alias is reserved
-           else return $ Just Nothing
+      -> fromArgs "aliasFor" (\[SomeArg (ArgText tileName)] -> if memberTileName tileName tileSet then Just $ Just tileName else Nothing) (Just Nothing) aliasConfig
 
 -- Given a path to the stage directory containing a layout file,
 -- parse the layout into a 'Tiles' where the format of the file is newline separated

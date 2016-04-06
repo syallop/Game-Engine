@@ -25,7 +25,17 @@ isSet :: Text -> Config -> Bool
 isSet w config = elem w $ (map _optionWord . _configOptions $ config) ++ (map _defaultOption . _defaultedOptions $ config)
 
 -- Assuming an option is set, either explicitly or by default, return its args.
-getArgs :: Text -> Config -> [SomeArg]
-getArgs w config = fromJust $ lookup w $ (map (\o -> (_optionWord o      ,_optionArgs  o)) . _configOptions    $ config)
-                                      ++ (map (\d -> (_defaultOption d,_defaultArgs d)) . _defaultedOptions $ config)
+getArgs' :: Text -> Config -> [SomeArg]
+getArgs' w config = fromJust $ getArgs w config
+
+-- If an option is set, either explicitly or by default, return its args.
+getArgs :: Text -> Config -> Maybe [SomeArg]
+getArgs w config = lookup w $ (map (\o -> (_optionWord o   ,_optionArgs  o)) . _configOptions    $ config)
+                           ++ (map (\d -> (_defaultOption d,_defaultArgs d)) . _defaultedOptions $ config)
+
+args :: Text -> [SomeArg] -> Config -> [SomeArg]
+args w def config = maybe def id $ getArgs w config
+
+fromArgs :: Text -> ([SomeArg] -> t) -> t -> Config -> t
+fromArgs w f defT config = maybe defT f $ getArgs w config
 

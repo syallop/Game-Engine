@@ -155,74 +155,17 @@ parseStage stageDir stagesPath renderer = do
       -> return Nothing
 
     Right stageConfig
-      -> do let gravity
-                    = if isSet "gravity" stageConfig
-                        -- gravity is set
-                        then case getArgs "gravity" stageConfig of
-                               [SomeArg (ArgInt x),SomeArg (ArgInt y)]
-                                 -> Force $ V2 (conv x) (conv y)
-                               _ -> error "Didnt parse as claimed"
-                        -- no gravity => 0 0
-                        else Force $ V2 0 0
-
-            let unitSize
-                    = if isSet "unitSize" stageConfig
-                        then case getArgs "unitSize" stageConfig of
-                               [SomeArg (ArgInt i)] -> conv i
-                               _ -> error "Didnt parse as claimed"
-                        -- emptyUnitSize
-                        else 1
-
-            let baseThingsName
-                    = if isSet "baseThings" stageConfig
-                        then case getArgs "baseThings" stageConfig of
-                               [SomeArg (ArgText n)] -> n
-                               _ -> error "Didnt parse as claimed"
-                        -- empty base things => use the empty string as a sentinel (parser never returns it)
-                        else ""
-
-            let tilesetName
-                    = if isSet "tileset" stageConfig
-                        then case getArgs "tileset" stageConfig of
-                               [SomeArg (ArgText n)] -> n
-                               _ -> error "Didnt parse as claimed"
-                        -- empty tileset => use the empty string as a sentinel (parser never returns it)
-                        else ""
-
-            let subjectSpeedLimit
-                    = if isSet "subjectSpeedLimit" stageConfig
-                        then case getArgs "subjectSpeedLimit" stageConfig of
-                               [SomeArg (ArgInt x), SomeArg (ArgInt y)] -> V2 (conv x) (conv y)
-                               _ -> error "Didnt parse as claimed"
-                        -- empty subject speed limit => default to... something too high!
-                        else V2 100 100
-
-            let thingSpeedLimit
-                    = if isSet "thingSpeedLimit" stageConfig
-                        then case getArgs "thingSpeedLimit" stageConfig of
-                               [SomeArg (ArgInt x), SomeArg (ArgInt y)] -> V2 (conv x) (conv y)
-                               _ -> error "Didnt parse as claimed"
-                        -- empty thing speed limit => default to... something too high!
-                        else V2 100 100
-
-            let subjectFriction
-                   = if isSet "subjectFriction" stageConfig
-                       then case getArgs "subjectFriction" stageConfig of
-                              [SomeArg (ArgInt fr)] -> conv fr
-                              _ -> error "Didnt parse as claimed"
-                       -- empty subject friction => default to 1!
-                       else 1
-
-            let thingFriction
-                   = if isSet "thingFriction" stageConfig
-                       then case getArgs "thingFriction" stageConfig of
-                              [SomeArg (ArgInt fr)] -> conv fr
-                              _ -> error "Didnt parse as claimed"
-                       -- empty thing friction => default to 1!
-                       else 1
+      -> do let gravity           = fromArgs "gravity"           (\[SomeArg (ArgInt x),SomeArg (ArgInt y)] -> Force $ V2 (conv x) (conv y)) (Force $ V2 0 0) stageConfig
+                unitSize          = fromArgs "unitSize"          (\[SomeArg (ArgInt i)] -> conv i)                                          0                stageConfig
+                baseThingsName    = fromArgs "baseThings"        (\[SomeArg (ArgText n)] -> n)                                              ""               stageConfig
+                tileSetName       = fromArgs "tileset"           (\[SomeArg (ArgText n)] -> n)                                              ""               stageConfig
+                subjectSpeedLimit = fromArgs "subjectSpeedLimit" (\[SomeArg (ArgInt x),SomeArg (ArgInt y)] -> V2 (conv x) (conv y))         (V2 100 100)     stageConfig
+                thingSpeedLimit   = fromArgs "thingSpeedLimit"   (\[SomeArg (ArgInt x),SomeArg (ArgInt y)] -> V2 (conv x) (conv y))         (V2 100 100)     stageConfig
+                subjectFriction   = fromArgs "subjectFriction"   (\[SomeArg (ArgInt i)] -> conv i)                                          1                stageConfig
+                thingFriction     = fromArgs "thingFriction"     (\[SomeArg (ArgInt i)] -> conv i)                                          1                stageConfig
 
             -- Load the stages tileset
-            tileset <- parseTileSet ("R/Tilesets/" ++ unpack tilesetName) renderer
+            tileset <- parseTileSet ("R/Tilesets/" ++ unpack tileSetName) renderer
 
             -- Get any tile aliases defined for this stage
             aliases    <- parseAliases tileset (stagesPath ++ "/" ++ stageDir)
@@ -301,75 +244,40 @@ parseThingInstance baseThings thingInstanceFile stagePath = do
 
     -- Parsed to a successful config with the given format
     Right thingInstanceConfig
-      -> -- Find the base thing it inherits from
-         if isSet "thing" thingInstanceConfig
-           then case getArgs "thing" thingInstanceConfig of
-                  [SomeArg (ArgText thingName)]
-                    -> let -- The amount the position is offset from the things default
-                           positionOffset = if isSet "positioned" thingInstanceConfig
-                                              then case getArgs "positioned" thingInstanceConfig of
-                                                     [SomeArg (ArgInt oX),SomeArg (ArgInt oY)]
-                                                       -> V2 (conv oX) (conv oY)
-                                                     _
-                                                       -> error "Didnt parse as claimed"
-                                              -- Unpositioned => no offset from thing default
-                                              else V2 0 0
-                           -- The exact initial velocity
-                           velocity :: V2 CInt
-                           velocity       = if isSet "moving" thingInstanceConfig
-                                              then case getArgs "moving" thingInstanceConfig of
-                                                     [SomeArg (ArgInt vX),SomeArg (ArgInt vY)]
-                                                       -> V2 (conv vX) (conv vY)
-                                                     _
-                                                       -> error "Didnt parse as claimed"
-                                              -- Stationary => no velocity
-                                              else V2 0 0
+      -> do -- Find the base thing it inherits from
+           let mThingName = fromArgs "thing" (\[SomeArg (ArgText thingName)] -> Just thingName) Nothing thingInstanceConfig
+           case mThingName of
+             -- Default to failing if no inherited thing was specified
+             Nothing -> return Nothing
 
-                           hitBox :: HitBox
-                           hitBox        = if isSet "hitbox" thingInstanceConfig
-                                             then case getArgs "hitbox" thingInstanceConfig of
-                                                    [SomeArg (ArgInt x),SomeArg (ArgInt y),SomeArg (ArgInt w),SomeArg (ArgInt h)]
-                                                      -> HitBoxRect (Rectangle (P $ V2 (conv x) (conv y)) (V2 (conv w) (conv h)))
+             Just thingName
+               -> let positionOffset = fromArgs "positioned" (\[SomeArg (ArgInt oX),SomeArg (ArgInt oY)]
+                                                               -> V2 (conv oX) (conv oY)
+                                                             ) (V2 0 0) thingInstanceConfig
+                      velocity       = fromArgs "moving"     (\[SomeArg (ArgInt vX),SomeArg (ArgInt vY)]
+                                                               -> V2 (conv vX) (conv vY)
+                                                             ) (V2 0 0) thingInstanceConfig
+                      hitBox         = fromArgs "hitbox"     (\[SomeArg (ArgInt x),SomeArg (ArgInt y),SomeArg (ArgInt w),SomeArg (ArgInt h)]
+                                                               -> HitBoxRect (Rectangle (P $ V2 (conv x) (conv y)) (V2 (conv w) (conv h)))
+                                                             ) NoHitBox thingInstanceConfig
+                      mBaseThing = Map.lookup thingName baseThings
+                     in -- If the base thing exists, inherit from it and modify by any config values
+                       case mBaseThing of
+                         -- The base thing doesnt exist. Fail!
+                         Nothing
+                           -> return Nothing
 
-                                             -- no hitbox
-                                             else NoHitBox
+                         Just baseThing
+                           -> do let thingWidth  = fromArgs "width"  (\[SomeArg (ArgInt w)] -> conv w) (baseThing^.thingTile.tileWidth)  thingInstanceConfig
+                                     thingHeight = fromArgs "height" (\[SomeArg (ArgInt h)] -> conv h) (baseThing^.thingTile.tileHeight) thingInstanceConfig
 
-                           mBaseThing = Map.lookup thingName baseThings
-                         in -- If the base thing exists, inherit from it and modify by any config values
-                            case mBaseThing of
-                              -- The base thing doesnt exist. Fail!
-                              Nothing
-                                -> return Nothing
+                                 return . Just . set thingVelocity (Velocity velocity)
+                                               . set (thingTile.tileWidth) thingWidth
+                                               . set (thingTile.tileHeight) thingHeight
+                                               . set (thingHitBox) hitBox
+                                               . moveThingBy positionOffset
+                                               $ baseThing
 
-                              Just baseThing
-                                -> do let thingWidth :: CInt
-                                          thingWidth = if isSet "width" thingInstanceConfig
-                                                         then case getArgs "width" thingInstanceConfig of
-                                                                [SomeArg (ArgInt w)] -> conv w
-                                                                _                    -> error "Didnt parse as claimed"
-                                                         -- InheritWidth
-                                                         else baseThing^.thingTile.tileWidth
-
-                                          thingHeight :: CInt
-                                          thingHeight = if isSet "height" thingInstanceConfig
-                                                          then case getArgs "height" thingInstanceConfig of
-                                                                 [SomeArg (ArgInt h)] -> conv h
-                                                                 _                    -> error "Didnt parse as claimed"
-                                                          -- InheritHeight
-                                                          else baseThing^.thingTile.tileHeight
-
-                                      return . Just . set thingVelocity (Velocity velocity)
-                                                    . set (thingTile.tileWidth) thingWidth
-                                                    . set (thingTile.tileHeight) thingHeight
-                                                    . set (thingHitBox) hitBox
-                                                    . moveThingBy positionOffset
-                                                    $ baseThing
-
-
-                  _
-                    -> error "Didnt parse as claimed"
-           -- Default to failing if no inherited thing was specified
-           else return Nothing
   where
     conv :: Int -> CInt
     conv = toEnum . fromEnum
