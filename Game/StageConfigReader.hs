@@ -20,6 +20,7 @@ import Game.TileSetConfigReader
 
 import Game.Agent
 import Game.Background
+import Game.Counter
 import Game.Force
 import Game.HitBox
 import Game.Stage
@@ -117,6 +118,10 @@ thingInstanceConfigFmt = ConfigFmt
                                          ])
                   (OptionFmt "emptyHitBox"  [])
                   ,DefaultFmt False      [])
+
+  ,(OptionPairFmt (OptionFmt "maxHealth"        [SomeArgFmt ArgFmtInt])
+                  (OptionFmt "defaultMaxHealth" [])
+                  ,DefaultFmt False             [])
   ]
 
 
@@ -260,6 +265,9 @@ parseThingInstance baseThings thingInstanceFile stagePath = do
                       hitBox         = fromArgs "hitbox"     (\[SomeArg (ArgInt x),SomeArg (ArgInt y),SomeArg (ArgInt w),SomeArg (ArgInt h)]
                                                                -> HitBoxRect (Rectangle (P $ V2 (conv x) (conv y)) (V2 (conv w) (conv h)))
                                                              ) NoHitBox thingInstanceConfig
+
+                      maxHealth      = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 3 thingInstanceConfig
+
                       mBaseThing = Map.lookup thingName baseThings
                      in -- If the base thing exists, inherit from it and modify by any config values
                        case mBaseThing of
@@ -274,7 +282,8 @@ parseThingInstance baseThings thingInstanceFile stagePath = do
                                  return . Just . set thingVelocity (Velocity velocity)
                                                . set (thingTile.tileWidth) thingWidth
                                                . set (thingTile.tileHeight) thingHeight
-                                               . set (thingHitBox) hitBox
+                                               . set thingHitBox hitBox
+                                               . set thingHealth (fromJust $ mkCounter maxHealth 0 maxHealth)
                                                . moveThingBy positionOffset
                                                $ baseThing
 

@@ -121,7 +121,6 @@ setSubjectTile tile stg =
       subject' = set thingTile tile subject
      in if collidesTileGrid (effectiveThingHitBox subject') tileGrid
         || collidesThings subject' (map fst $ stg^.stageThings)
-        {-|| collidesThings tile (map fst $ stg^.stageThings)-}
           then Nothing
           else Just $ set stageSubject subject' stg
 
@@ -254,9 +253,6 @@ applyActionThing ob action (thing,agent) = case action of
 
   Spawn f
     -> ((thing,agent),[f ob])
-
-  {-Spawn newThing newAgent-}
-    {--> ((thing,agent),[(newThing,newAgent)])-}
 
   And a1 a2
     -> let ((thing1,agent1),newThings1) = applyActionThing ob a1 (thing,agent)

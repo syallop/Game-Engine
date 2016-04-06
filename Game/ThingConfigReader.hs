@@ -40,6 +40,10 @@ thingConfigFmt = ConfigFmt
   ,(OptionPairFmt (OptionFmt "mass"     [])
                   (OptionFmt "massless" [])
                   ,DefaultFmt True      [])
+
+  ,(OptionPairFmt (OptionFmt "maxHealth"        [SomeArgFmt ArgFmtInt])
+                  (OptionFmt "defaultMaxHealth" [])
+                  ,DefaultFmt False             [])
   ]
 
 -- Given a path to a directory of thing files and a tileset the things may use,
@@ -78,6 +82,8 @@ parseThing thingFile thingsPath radius tileset = do
       -> do let tileName = fromArgs "tile" (\[SomeArg (ArgText tileName)] -> tileName) "" thingConfig
                 defaultPosition = P $ V2 0 0
 
+                maxHealth = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 3 thingConfig
+
             -- Attempt to load the named tile.
             -- Cache against the tiletype so we can inherit properties from the tile like solidness
             let mTile :: Maybe (TileType,Tile)
@@ -104,6 +110,6 @@ parseThing thingFile thingsPath radius tileset = do
                 -> let isSolid         = tileType^.tileTypeIsSolid
                        hasMass         = isSet "mass" thingConfig
                        defaultVelocity = Velocity (V2 0 0)
-                       defaultCounter  = fromJust $ mkCounter 3 0 3
+                       defaultCounter  = fromJust $ mkCounter maxHealth 0 maxHealth
                       in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter NoHitBox
 
