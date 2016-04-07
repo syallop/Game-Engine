@@ -16,14 +16,17 @@ import Data.Text as T hiding (replicate,foldr,map,toLower,length)
 import Foreign.C.Types
 import GHC.Word
 import Linear (V2(..),V4(..))
-import Linear.Affine (Point(..))
+import Linear.Affine (Point(..),lensP)
 import SDL
 import qualified Data.Map as M
 
+import qualified Game.Agent as A
 import Game.Background
 import Game.Collect
+import Game.Counter
 import Game.Camera
 import Game.Force
+import Game.HitBox
 import Game.Stage
 import Game.StageConfigReader
 import Game.Thing
@@ -57,7 +60,24 @@ initialGame :: Renderer -> CInt -> CInt -> IO Game
 initialGame renderer frameWidth frameHeight = do
   let quit     = False
 
-  let agents = mkCollect [] []
+  let shootingAgent = fromJust $ A.mkAgent $ M.fromList
+                [(A.DistanceLess 256 `A.AndT` A.PlayerLeft,A.WalkLeft)
+                ,(A.DistanceLess 256 `A.AndT` A.PlayerRight,A.WalkRight)
+                ,(A.PlayerRight,A.Spawn shootRight)
+                ]
+      shootRight ob = (moveThingBy (ob^. A.observeAgentPosition . lensP) bulletRightThing
+                      ,bulletRightAgent
+                      )
+      bulletRightThing = Thing bulletRightTile True False (Velocity $ V2 1 0) (fromJust $ mkCounter 1 0 1) NoHitBox
+      bulletRightAgent = A.emptyAgent
+      bulletRightTile  = mkTile (TileTypeColored (V4 1 0 0 1) True) (Rectangle (P $ V2 0 0) (V2 5 5))
+
+      movingAgent = fromJust $ A.mkAgent $ M.fromList
+                [(A.DistanceLess 256 `A.AndT` A.PlayerLeft, A.WalkLeft)
+                ,(A.DistanceLess 256 `A.AndT` A.PlayerRight,A.WalkRight)
+                ]
+
+  let agents = mkCollect [(shootingAgent,"shootingAgent"),(movingAgent, "movingAgent")] []
 
   -- Load a stage
   stages <- parseStages agents "R/Stages" renderer

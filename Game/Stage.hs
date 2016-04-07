@@ -24,12 +24,12 @@ module Game.Stage
 
 import Control.Arrow
 import Control.Lens
+import Data.Map.Lens
 import Data.Text (Text)
 import Foreign.C.Types
-import Linear
+import Linear hiding (trace)
 import SDL
 import qualified Data.Map as M
-import Data.Map.Lens
 
 import Game.Agent
 import Game.Background
@@ -225,13 +225,6 @@ applyThingsAgents stg =
                                                         in (newThings,(thing1,agent1))
                                                   ) (stg^.stageThings)
      in set stageThings (fst $ insertAnonymouses newThings updatedThings) stg
-
-
-  {-let newThings = concatMap (\(thing,agent) -> let ((thing1,agent1),newThings) = applyThingAgent (thing,agent) (ob thing)-}
-                                                  {-in (thing1,agent1):newThings-}
-                            {-)-}
-                            {-(stg^.stageThings)-}
-     {-in set stageThings newThings stg-}
   where
     ob thing = Observe {_observeAgentPosition  = thing^.thingTile.tilePos
                        ,_observePlayerPosition = stg^.stageSubject.thingTile.tilePos

@@ -161,6 +161,9 @@ tileBL = lens (\t -> (t^.tileTL) + (P $ V2 0 (t^.tileHeight))) (\t bl -> tilePos
 tileBR :: Lens' Tile (Point V2 CInt)
 tileBR = lens (\t -> (t^.tileTL) + (P $ V2 (t^.tileWidth) (t^.tileHeight))) (\t br -> tilePos .~ (br - (P $ V2 (t^.tileWidth) (t^.tileHeight))) $ t)
 
+tileCenter :: Lens' Tile (Point V2 CInt)
+tileCenter = lens (\t -> (t^.tileTL) + (P $ V2 (t^.tileWidth `div` 2) (t^.tileHeight `div` 2))) (\t c -> tilePos .~ (c - (P $ V2 (t^.tileWidth `div` 2) (t^.tileHeight `div` 2))) $ t)
+
 -- Move a tile right and down by the given offset
 moveTile :: V2 CInt -> Tile -> Tile
 moveTile o = tilePos+~P o

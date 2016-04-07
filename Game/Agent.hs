@@ -8,6 +8,10 @@ module Game.Agent
   ,Action(..)
   ,Trigger(..)
   ,Observe(..)
+  ,observeAgentPosition
+  ,observePlayerPosition
+  ,observeAgentHealth
+  ,observePlayerHealth
 
   ,exAgent
   )
