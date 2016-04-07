@@ -21,6 +21,7 @@ import SDL
 import qualified Data.Map as M
 
 import Game.Background
+import Game.Collect
 import Game.Camera
 import Game.Force
 import Game.Stage
@@ -56,8 +57,10 @@ initialGame :: Renderer -> CInt -> CInt -> IO Game
 initialGame renderer frameWidth frameHeight = do
   let quit     = False
 
+  let agents = mkCollect [] []
+
   -- Load a stage
-  stages <- parseStages "R/Stages" renderer
+  stages <- parseStages agents "R/Stages" renderer
   let stage0     = (!! 0) . M.elems $ stages
 
   -- Boundaries the camera should not move past

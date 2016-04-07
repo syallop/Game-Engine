@@ -13,6 +13,7 @@ import Game.ConfigReader.ConfigFmt
 import Game.ConfigReader.Option
 import Game.ConfigReader.OptionFmt
 
+import Game.Collect
 import Game.Counter
 import Game.HitBox
 import Game.Thing
@@ -24,7 +25,7 @@ import Control.Applicative
 import Control.Lens
 import Data.Maybe
 import Data.Monoid
-import Data.Text hiding (filter,foldr)
+import Data.Text hiding (filter,foldr,map)
 import Foreign.C.Types
 import Linear
 import Linear.Affine (Point(..))
@@ -48,7 +49,7 @@ thingConfigFmt = ConfigFmt
 
 -- Given a path to a directory of thing files and a tileset the things may use,
 -- create the things!
-parseThings :: FilePath -> TileSet -> CInt -> IO Things
+parseThings :: FilePath -> TileSet -> CInt -> IO (Collect Thing)
 parseThings thingsPath tileset radius = do
   files <- listDirectory thingsPath
 
@@ -68,7 +69,7 @@ parseThings thingsPath tileset radius = do
                      []
                      mThings
 
-  return $ Map.fromList things
+  return $ mkCollect (map (\(name,thing) -> (thing,Name name)) things) []
 
 parseThing :: FilePath -> FilePath -> CInt -> TileSet -> IO (Maybe Thing)
 parseThing thingFile thingsPath radius tileset = do

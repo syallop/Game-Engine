@@ -36,6 +36,7 @@ import Linear.Affine
 import SDL
 
 import Game.Background
+import Game.Collect
 import Game.Stage
 import Game.Thing
 import Game.Tile
@@ -216,7 +217,7 @@ shoot c renderer stage = do
   renderTile renderer $ over tilePos (`worldToCamera` c') subjectTile
 
   -- render the 'Thing's
-  mapM_ (\thing -> renderTile renderer $ over tilePos (`worldToCamera` c') $ thing^.thingTile) (map fst $ stage^.stageThings)
+  mapM_ (\thing -> renderTile renderer $ over tilePos (`worldToCamera` c') $ thing^.thingTile) (map (fst . fst) . collected $ stage^.stageThings)
 
   present renderer
 

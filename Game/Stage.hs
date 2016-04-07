@@ -24,12 +24,16 @@ module Game.Stage
 
 import Control.Arrow
 import Control.Lens
+import Data.Text (Text)
 import Foreign.C.Types
 import Linear
 import SDL
+import qualified Data.Map as M
+import Data.Map.Lens
 
 import Game.Agent
 import Game.Background
+import Game.Collect
 import Game.Force
 import Game.Thing
 import Game.Tile
@@ -43,7 +47,7 @@ type Subject = Thing
 data Stage = Stage
   {_stageBackground      :: Background
   ,_stageSubject         :: Subject
-  ,_stageThings          :: [(Thing,Agent)]
+  ,_stageThings          :: Collect (Thing,Agent)
   ,_stageGravity         :: Force
 
   ,_stageSpeedLimit      :: V2 CInt
@@ -53,7 +57,6 @@ data Stage = Stage
   ,_stageThingFriction   :: CInt
   }
   deriving (Eq,Show)
-
 makeLenses ''Stage
 
 
@@ -74,7 +77,7 @@ tickStage dTicks
 -- TODO: Fail when subject collides with background in starting position.
 setStage :: Background
          -> Subject
-         -> [(Thing,Agent)]
+         -> Collect (Thing,Agent)
          -> Force
          -> V2 CInt
          -> V2 CInt
@@ -120,7 +123,7 @@ setSubjectTile tile stg =
       subject  = stg^.stageSubject
       subject' = set thingTile tile subject
      in if collidesTileGrid (effectiveThingHitBox subject') tileGrid
-        || collidesThings subject' (map fst $ stg^.stageThings)
+        || collidesThings subject' (map (fst . fst) . collected $ stg^.stageThings)
           then Nothing
           else Just $ set stageSubject subject' stg
 
@@ -133,7 +136,7 @@ collidesStageBackgroundTileGrid :: Stage -> Thing -> Bool
 collidesStageBackgroundTileGrid stg thing = collidesTileGrid (effectiveThingHitBox thing) (stg^.stageBackground.backgroundTileGrid)
 
 collidesStageThings :: Stage -> Thing -> Bool
-collidesStageThings stg thing = collidesThings thing (map fst $ stg^.stageThings)
+collidesStageThings stg thing = collidesThings thing (map (fst . fst) $ collected $ stg^.stageThings)
 
 -- Apply velocity to the subject by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
@@ -148,7 +151,7 @@ applyVelocitySubject ticks stg =
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
 -- Only checks collision with the background, not the subject or other things.
 applyVelocityThings :: CInt -> Stage -> Stage
-applyVelocityThings ticks stg = over stageThings (map (first applyVelocityThing)) stg
+applyVelocityThings ticks stg = over (stageThings . traverse) (first applyVelocityThing) stg
   where
     applyVelocityThing :: Thing -> Thing
     applyVelocityThing thing = tryMoveThingBy ((* V2 ticks ticks) $ thing^.thingVelocity.vel)
@@ -161,7 +164,7 @@ applyGravitySubject stg = applyForceSubject (stg^.stageGravity) stg
 
 -- apply gravity to all of the Things
 applyGravityThings :: Stage -> Stage
-applyGravityThings stg = over stageThings (map (first $ applyForceThing (stg^.stageGravity))) stg
+applyGravityThings stg = over (stageThings . traverse) (first $ applyForceThing (stg^.stageGravity)) stg
 
 -- Apply a force to a subject to change its velocity
 applyForceSubject :: Force -> Stage -> Stage
@@ -217,11 +220,18 @@ applyFrictionThings stg = stageThings.traverse._1%~applyFrictionThing (stg^.stag
 -- Update each thing by its corresponding agent
 applyThingsAgents :: Stage -> Stage
 applyThingsAgents stg =
-  let newThings = concatMap (\(thing,agent) -> let ((thing1,agent1),newThings) = applyThingAgent (thing,agent) (ob thing)
-                                                  in (thing1,agent1):newThings
-                            )
-                            (stg^.stageThings)
-     in set stageThings newThings stg
+  let (newThings,updatedThings) = mapWriteCollect (\_ _ (thing,agent)
+                                                    -> let ((thing1,agent1),newThings) = applyThingAgent (thing,agent) (ob thing)
+                                                        in (newThings,(thing1,agent1))
+                                                  ) (stg^.stageThings)
+     in set stageThings (fst $ insertAnonymouses newThings updatedThings) stg
+
+
+  {-let newThings = concatMap (\(thing,agent) -> let ((thing1,agent1),newThings) = applyThingAgent (thing,agent) (ob thing)-}
+                                                  {-in (thing1,agent1):newThings-}
+                            {-)-}
+                            {-(stg^.stageThings)-}
+     {-in set stageThings newThings stg-}
   where
     ob thing = Observe {_observeAgentPosition  = thing^.thingTile.tilePos
                        ,_observePlayerPosition = stg^.stageSubject.thingTile.tilePos

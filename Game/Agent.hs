@@ -19,6 +19,7 @@ import Foreign.C.Types
 import Linear hiding (trace)
 import Linear.Affine
 import qualified Data.Map as Map
+
 import Game.Thing
 
 data Agent = Agent
@@ -140,3 +141,4 @@ exAgent = fromJust $ mkAgent $ Map.fromList
   [(DistanceLess 256 `AndT` PlayerLeft,WalkLeft)
   ,(DistanceLess 256 `AndT` PlayerRight,WalkRight)
   ]
+
