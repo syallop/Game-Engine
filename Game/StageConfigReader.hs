@@ -134,7 +134,7 @@ thingInstanceConfigFmt = ConfigFmt
 type Stages = Map.Map Text Stage
 
 -- given a path to a directory of stage directories, load all the stages
-parseStages :: Collect Agent -> FilePath -> Renderer -> IO Stages
+parseStages :: Collect SomeAgent -> FilePath -> Renderer -> IO Stages
 parseStages agents stagesPath renderer = do
   files <- listDirectory stagesPath
 
@@ -157,7 +157,7 @@ parseStages agents stagesPath renderer = do
   return $ Map.fromList stages
 
 -- given a path to a stage directory, load all its dependencies and assemble the stage.
-parseStage :: Collect Agent -> FilePath -> FilePath -> Renderer -> IO (Maybe Stage)
+parseStage :: Collect SomeAgent -> FilePath -> FilePath -> Renderer -> IO (Maybe Stage)
 parseStage agents stageDir stagesPath renderer = do
   res <- parseConfigFile stageConfigFmt (stagesPath ++ "/" ++ stageDir ++ "/stage")
   case res of
@@ -221,7 +221,7 @@ parseBackground stagePath tileset aliases unitSize renderer = do
 -- Given a set of base things which may be inherited from and a path to a directory of thing instance files,
 -- parse each thing instance file and instantiate the base thing with the given configuration options.
 -- Fileformat: NAME.thinginstance
-parseThingInstances :: Collect Thing -> Collect Agent -> FilePath -> IO (Collect (Thing,Agent))
+parseThingInstances :: Collect Thing -> Collect SomeAgent -> FilePath -> IO (Collect (Thing,SomeAgent))
 parseThingInstances baseThings agents stagePath = do
   files <- listDirectory stagePath
 
@@ -233,7 +233,7 @@ parseThingInstances baseThings agents stagePath = do
   mThingInstances <- mapM (\thingFile -> (pack . name $ thingFile,) <$> parseThingInstance baseThings agents thingFile stagePath) thingInstanceFiles
 
   -- Silently drop all where the config file failed to parse
-  let thingInstances :: [(Text,(Thing,Agent))]
+  let thingInstances :: [(Text,(Thing,SomeAgent))]
       thingInstances = foldr (\(name,mThingInstance) acc -> case mThingInstance of
                                                               Nothing            -> acc
                                                               Just thingInstance -> (name,thingInstance):acc
@@ -245,7 +245,7 @@ parseThingInstances baseThings agents stagePath = do
 
 -- Given a context of base Things, a thing instance file under a stage filepath,
 -- parse the thing instance file and create a thing, inheriting from the base thing.
-parseThingInstance :: Collect Thing -> Collect Agent -> FilePath -> FilePath -> IO (Maybe (Thing,Agent))
+parseThingInstance :: Collect Thing -> Collect SomeAgent -> FilePath -> FilePath -> IO (Maybe (Thing,SomeAgent))
 parseThingInstance baseThings agents thingInstanceFile stagePath = do
   res <- parseConfigFile thingInstanceConfigFmt (stagePath ++ "/" ++ thingInstanceFile)
   case res of
@@ -274,7 +274,7 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
 
                       maxHealth      = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 3 thingInstanceConfig
 
-                      agent          = fromArgs "agent"     (\[SomeArg (ArgText a)] -> maybe emptyAgent fst $ lookupName (Name a) agents) emptyAgent thingInstanceConfig
+                      agent          = fromArgs "agent"     (\[SomeArg (ArgText a)] -> maybe (SomeAgent emptyAgent) fst $ lookupName (Name a) agents) (SomeAgent emptyAgent) thingInstanceConfig
 
                       mBaseThing = lookupName thingName baseThings
                      in -- If the base thing exists, inherit from it and modify by any config values

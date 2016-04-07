@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, GADTs , StandaloneDeriving,ScopedTypeVariables,DeriveDataTypeable #-}
 module Game.Agent
   (Agent()
   ,mkAgent
@@ -13,12 +13,14 @@ module Game.Agent
   ,observeAgentHealth
   ,observePlayerHealth
 
-  ,exAgent
+  ,SomeAgent(..)
   )
   where
 
 import Control.Lens
 import Data.Maybe
+import Data.Monoid
+import Data.Typeable
 import Foreign.C.Types
 import Linear hiding (trace)
 import Linear.Affine
@@ -26,10 +28,24 @@ import qualified Data.Map as Map
 
 import Game.Thing
 
-data Agent = Agent
-  {_rules :: Rules
+data SomeAgent = forall s. (Show s,Eq s,Typeable s) => SomeAgent (Agent s)
+
+instance Eq SomeAgent where
+  s0 == s1 = case (s0,s1) of
+    (SomeAgent (a0 :: Agent s0),SomeAgent (a1 :: Agent s1))
+      -> case cast a1 :: Maybe (Agent s0) of
+          Nothing -> False
+          Just a2 -> a0 == a2
+
+instance Show SomeAgent where
+  show (SomeAgent a) = show a
+
+
+data Agent s = Agent
+  {_agentState :: s
+  ,_agentRules :: Rules
   }
-  deriving (Eq,Show)
+  deriving (Eq,Show,Typeable)
 
 -- Something an agent may decide to do
 data Action
@@ -38,7 +54,8 @@ data Action
   | Jump
   | And Action Action
   | Or Action Action
-  | Spawn (Observe -> (Thing,Agent))
+  | Spawn (Observe -> (Thing,SomeAgent))
+  -- | ModifyState
 
 instance Show Action where
   show a = case a of
@@ -125,24 +142,14 @@ doesTrigger o t = case t of
     cIntToCFloat = fromIntegral
 
 
-mkAgent :: Rules -> Maybe Agent
-mkAgent = Just . Agent
+mkAgent :: s -> Rules -> Maybe (Agent s)
+mkAgent s rs = Just $ Agent s rs
 
-emptyAgent :: Agent
-emptyAgent = Agent $ Map.fromList []
+emptyAgent :: Agent ()
+emptyAgent = Agent () $ Map.fromList []
 
 -- Passed observations about the current state of the world
 -- , the agent returns a list of actions to perform.
-observe :: Observe -> Agent -> [Action]
-observe o a = triggerActions o (_rules a)
-
--- near player && high health => walk nearer player
--- near player && low  health => walk further player
--- attackingdistance player && high health => attack player
--- under player => jump
-exAgent :: Agent
-exAgent = fromJust $ mkAgent $ Map.fromList
-  [(DistanceLess 256 `AndT` PlayerLeft,WalkLeft)
-  ,(DistanceLess 256 `AndT` PlayerRight,WalkRight)
-  ]
+observe :: Observe -> Agent s -> [Action]
+observe o a = triggerActions o (_agentRules a)
 

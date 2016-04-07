@@ -60,24 +60,24 @@ initialGame :: Renderer -> CInt -> CInt -> IO Game
 initialGame renderer frameWidth frameHeight = do
   let quit     = False
 
-  let shootingAgent = fromJust $ A.mkAgent $ M.fromList
+  let shootingAgent = fromJust $ A.mkAgent () $ M.fromList
                 [(A.DistanceLess 256 `A.AndT` A.PlayerLeft,A.WalkLeft)
                 ,(A.DistanceLess 256 `A.AndT` A.PlayerRight,A.WalkRight)
                 ,(A.PlayerRight,A.Spawn shootRight)
                 ]
       shootRight ob = (moveThingBy (ob^. A.observeAgentPosition . lensP) bulletRightThing
-                      ,bulletRightAgent
+                      ,A.SomeAgent bulletRightAgent
                       )
       bulletRightThing = Thing bulletRightTile True False (Velocity $ V2 1 0) (fromJust $ mkCounter 1 0 1) NoHitBox
       bulletRightAgent = A.emptyAgent
       bulletRightTile  = mkTile (TileTypeColored (V4 1 0 0 1) True) (Rectangle (P $ V2 0 0) (V2 5 5))
 
-      movingAgent = fromJust $ A.mkAgent $ M.fromList
+      movingAgent = fromJust $ A.mkAgent () $ M.fromList
                 [(A.DistanceLess 256 `A.AndT` A.PlayerLeft, A.WalkLeft)
                 ,(A.DistanceLess 256 `A.AndT` A.PlayerRight,A.WalkRight)
                 ]
 
-  let agents = mkCollect [(shootingAgent,"shootingAgent"),(movingAgent, "movingAgent")] []
+  let agents = mkCollect [(A.SomeAgent shootingAgent,"shootingAgent"),(A.SomeAgent movingAgent, "movingAgent")] []
 
   -- Load a stage
   stages <- parseStages agents "R/Stages" renderer

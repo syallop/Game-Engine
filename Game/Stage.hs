@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, ExistentialQuantification,StandaloneDeriving #-}
 module Game.Stage
   (Stage()
   ,Subject(..)
@@ -47,7 +47,7 @@ type Subject = Thing
 data Stage = Stage
   {_stageBackground      :: Background
   ,_stageSubject         :: Subject
-  ,_stageThings          :: Collect (Thing,Agent)
+  ,_stageThings          :: Collect (Thing,SomeAgent)
   ,_stageGravity         :: Force
 
   ,_stageSpeedLimit      :: V2 CInt
@@ -55,8 +55,7 @@ data Stage = Stage
 
   ,_stageSubjectFriction :: CInt
   ,_stageThingFriction   :: CInt
-  }
-  deriving (Eq,Show)
+  } deriving (Show,Eq)
 makeLenses ''Stage
 
 
@@ -77,7 +76,7 @@ tickStage dTicks
 -- TODO: Fail when subject collides with background in starting position.
 setStage :: Background
          -> Subject
-         -> Collect (Thing,Agent)
+         -> Collect (Thing,SomeAgent)
          -> Force
          -> V2 CInt
          -> V2 CInt
@@ -220,9 +219,9 @@ applyFrictionThings stg = stageThings.traverse._1%~applyFrictionThing (stg^.stag
 -- Update each thing by its corresponding agent
 applyThingsAgents :: Stage -> Stage
 applyThingsAgents stg =
-  let (newThings,updatedThings) = mapWriteCollect (\_ _ (thing,agent)
+  let (newThings,updatedThings) = mapWriteCollect (\_ _ (thing,SomeAgent agent)
                                                     -> let ((thing1,agent1),newThings) = applyThingAgent (thing,agent) (ob thing)
-                                                        in (newThings,(thing1,agent1))
+                                                        in (newThings,(thing1,SomeAgent agent1))
                                                   ) (stg^.stageThings)
      in set stageThings (fst $ insertAnonymouses newThings updatedThings) stg
   where
@@ -234,7 +233,7 @@ applyThingsAgents stg =
 
 -- Ask a things agent what to do with a thing under the stage.
 -- Return a list of things and agents as the result of doing it.
-applyThingAgent :: (Thing,Agent) -> Observe -> ((Thing,Agent),[(Thing,Agent)])
+applyThingAgent :: (Thing,Agent s) -> Observe -> ((Thing,Agent s),[(Thing,SomeAgent)])
 applyThingAgent (thing,agent) ob = foldr (\action ((thing0,agent0),newThings0)
                                            -> let ((thing1,agent1),newThings1) = applyActionThing ob action (thing0,agent0)
                                                  in ((thing1,agent1),newThings0++newThings1)
@@ -243,7 +242,7 @@ applyThingAgent (thing,agent) ob = foldr (\action ((thing0,agent0),newThings0)
                                          (observe ob agent)
 
 -- Apply a single action to a thing, returning an updated thing and agent, alongside a list of things and agents to spawn
-applyActionThing :: Observe -> Action -> (Thing,Agent) -> ((Thing,Agent),[(Thing,Agent)])
+applyActionThing :: Observe -> Action -> (Thing,Agent s) -> ((Thing,Agent s),[(Thing,SomeAgent)])
 applyActionThing ob action (thing,agent) = case action of
   WalkLeft
     -> ((applyForceThing (Force $ V2 (-2) 0) thing,agent),[])
