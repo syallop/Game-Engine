@@ -40,12 +40,25 @@ instance Eq SomeAgent where
 instance Show SomeAgent where
   show (SomeAgent a) = show a
 
-
 data Agent s = Agent
-  {_agentState :: s
-  ,_agentRules :: Rules
+  {_agentState        :: s                   -- Some state
+  ,_agentGuardTrigger :: s -> Action -> Bool -- Guard an action from being executed by the state
+                                             -- E.G. If we've only just shot a bullet, we need a reload time
+  ,_agentRules        :: Rules
   }
-  deriving (Eq,Show,Typeable)
+  deriving (Typeable)
+
+instance Eq s => Eq (Agent s) where
+  (Agent s0 _ rs0) == (Agent s1 _ rs1) = s0 == s1 && rs0 == rs1
+
+instance Show s => Show (Agent s) where
+  show (Agent s _ rs) = "Agent " ++ show s ++ " " ++ show rs
+
+mkAgent :: s -> (s -> Action -> Bool) -> Rules -> Maybe (Agent s)
+mkAgent s f rs = Just $ Agent s f rs
+
+emptyAgent :: Agent ()
+emptyAgent = Agent () (const . const True) $ Map.fromList []
 
 -- Something an agent may decide to do
 data Action
@@ -102,8 +115,8 @@ data Observe = Observe
 makeLenses ''Observe
 
 -- List of actions which triggered
-triggerActions :: Observe -> Rules -> [Action]
-triggerActions o = foldr (\(t,a) acc -> if doesTrigger o t then a:acc else acc) [] . Map.toList
+triggerActions :: Observe -> (Action -> Bool) -> Rules -> [Action]
+triggerActions o guardF = foldr (\(t,a) acc -> if doesTrigger o t && guardF a then a:acc else acc) [] . Map.toList
 
 -- Does the trigger.. trigger?
 doesTrigger :: Observe -> Trigger -> Bool
@@ -141,15 +154,8 @@ doesTrigger o t = case t of
     cIntToCFloat :: CInt -> CFloat
     cIntToCFloat = fromIntegral
 
-
-mkAgent :: s -> Rules -> Maybe (Agent s)
-mkAgent s rs = Just $ Agent s rs
-
-emptyAgent :: Agent ()
-emptyAgent = Agent () $ Map.fromList []
-
 -- Passed observations about the current state of the world
 -- , the agent returns a list of actions to perform.
 observe :: Observe -> Agent s -> [Action]
-observe o a = triggerActions o (_agentRules a)
+observe o a = triggerActions o (_agentGuardTrigger a (_agentState a)) (_agentRules a)
 

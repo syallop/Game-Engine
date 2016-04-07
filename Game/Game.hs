@@ -60,7 +60,7 @@ initialGame :: Renderer -> CInt -> CInt -> IO Game
 initialGame renderer frameWidth frameHeight = do
   let quit     = False
 
-  let shootingAgent = fromJust $ A.mkAgent () $ M.fromList
+  let shootingAgent = fromJust $ A.mkAgent () (\_ _ -> True) $ M.fromList
                 [(A.DistanceLess 256 `A.AndT` A.PlayerLeft,A.WalkLeft)
                 ,(A.DistanceLess 256 `A.AndT` A.PlayerRight,A.WalkRight)
                 ,(A.PlayerRight,A.Spawn shootRight)
@@ -72,7 +72,7 @@ initialGame renderer frameWidth frameHeight = do
       bulletRightAgent = A.emptyAgent
       bulletRightTile  = mkTile (TileTypeColored (V4 1 0 0 1) True) (Rectangle (P $ V2 0 0) (V2 5 5))
 
-      movingAgent = fromJust $ A.mkAgent () $ M.fromList
+      movingAgent = fromJust $ A.mkAgent () (\_ _ -> True) $ M.fromList
                 [(A.DistanceLess 256 `A.AndT` A.PlayerLeft, A.WalkLeft)
                 ,(A.DistanceLess 256 `A.AndT` A.PlayerRight,A.WalkRight)
                 ]
