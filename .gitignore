@@ -1,0 +1,7 @@
+dist/
+*.o
+*.hi
+*.dyn_hi
+*.dyn_o
+.DS_Store
+._.DS_Store
