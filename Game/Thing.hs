@@ -69,14 +69,14 @@ moveThingDown  = moveThingDownBy 1
 moveThingUp    = moveThingUpBy 1
 
 -- move a thing in a direction by a positive amount
-moveThingRightBy, moveThingLeftBy, moveThingDownBy, moveThingUpBy :: CInt -> Thing -> Thing
+moveThingRightBy, moveThingLeftBy, moveThingDownBy, moveThingUpBy :: CFloat -> Thing -> Thing
 moveThingRightBy x = over thingTile (moveTileR x)
 moveThingLeftBy  x = over thingTile (moveTileL x)
 moveThingDownBy  y = over thingTile (moveTileD y)
 moveThingUpBy    y = over thingTile (moveTileU y)
 
 -- move a thing in both axis
-moveThingBy :: V2 CInt -> Thing -> Thing
+moveThingBy :: V2 CFloat -> Thing -> Thing
 moveThingBy (V2 x y) thing = moveThingDownBy y . moveThingRightBy x $ thing
 
 
@@ -107,10 +107,10 @@ tryMoveThingUp thing isValid =
           else Left $ over thingVelocity nullY thing
 
 
-tryMoveThingBy :: V2 CInt -> Thing -> (Thing -> Bool) -> Thing
+tryMoveThingBy :: V2 CFloat -> Thing -> (Thing -> Bool) -> Thing
 tryMoveThingBy (V2 x y) thing isValid = interleaveStateful (abs x) (abs y) thing fx fy
   where
-    fx :: CInt -> Thing -> Either (Thing,CInt) Thing
+    fx :: CFloat -> Thing -> Either (Thing,CFloat) Thing
     fx = if x > 0 then fRight else fLeft
     fy = if y > 0 then fDown  else fUp
 
@@ -121,16 +121,17 @@ tryMoveThingBy (V2 x y) thing isValid = interleaveStateful (abs x) (abs y) thing
 
     -- Apply a movement function to a thing, n times supporting early failure.
     -- E.G. if we hit a wall with 5 steps to go, theres no need to try another 5 times.
-    step :: (Thing -> (Thing -> Bool) -> Either Thing Thing) -> CInt -> Thing -> Either (Thing,CInt) Thing
-    step _ 0 thing         = Right thing
-    step moveF delta thing = case moveF thing isValid of
-                                 -- Failed to move => Done recursing
-                                 Left thing'
-                                   -> Right thing'
+    step :: (Thing -> (Thing -> Bool) -> Either Thing Thing) -> CFloat -> Thing -> Either (Thing,CFloat) Thing
+    step moveF delta thing
+      | delta <= 0 = Right thing
+      | otherwise  = case moveF thing isValid of
+                         -- Failed to move => Done recursing
+                         Left thing'
+                           -> Right thing'
 
-                                 -- Moved. Recurse one less time
-                                 Right thing'
-                                   -> Left (thing',delta-1)
+                         -- Moved. Recurse one less time
+                         Right thing'
+                           -> Left (thing',delta-1)
 
 
 -- Do two things collide?

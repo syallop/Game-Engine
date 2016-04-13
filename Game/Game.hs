@@ -10,7 +10,7 @@ import Control.Applicative
 import Control.Lens hiding (cons,uncons)
 import Control.Monad
 import Data.Char
-import Data.List
+import Data.List hiding (uncons)
 import Data.Maybe
 import Data.Text as T hiding (replicate,foldr,map,toLower,length)
 import Foreign.C.Types
@@ -22,11 +22,13 @@ import qualified Data.Map as M
 
 import qualified Game.Agent as A
 import Game.Background
+import Game.Camera
 import Game.Collect
 import Game.Counter
-import Game.Camera
 import Game.Force
 import Game.HitBox
+import Game.Position
+import Game.Size
 import Game.Stage
 import Game.StageConfigReader
 import Game.Thing
@@ -39,6 +41,7 @@ import Game.Velocity
 
 import Debug.Trace
 
+-- Game state and configuration options 
 data Game = Game
   {_gameQuit      :: Bool
 
@@ -47,16 +50,57 @@ data Game = Game
   ,_gameStages    :: Stages -- all the possible stages
 
   ,_gameCamera    :: Camera
-  ,_gamePanSpeed  :: CInt
+  ,_gamePanSpeed  :: CFloat 
 
-  ,_gameLastTicks :: Word32 -- Number of ticks since sdl initialisation, as of the last game step
-  ,_gameTickDelta :: CInt   -- Number of tenths of a tick since last check
+  ,_gameLastTicks :: Word32 -- Number of ticks since initialisation. 
+  ,_gameTickDelta :: CInt   -- Number of ticks since last check. 
   }
   deriving Show
-
 makeLenses ''Game
 
-initialGame :: Renderer -> CInt -> CInt -> IO Game
+
+
+-- Infer the boundaries of the current stage (as the most extreme edges of the background tiles)
+-- and set it.
+inferCameraBoundaries :: Game -> Game
+inferCameraBoundaries g =
+  let tileGrid = g^.gameStage.stageBackground.backgroundTileGrid
+      l = 0
+      r = tileGridWidth tileGrid
+      u = 0
+      d = tileGridHeight tileGrid
+      boundaries = V4 l (fromIntegral r) u (fromIntegral d)
+    in over gameCamera (setBoundaries boundaries) g
+
+
+-- Execute the game as defined by "R/" directory with a screen size of 640*480
+main :: IO ()
+main = do
+  let w = 640
+      h = 480
+  (window,renderer) <- initializeWindow w h
+  game              <- initialGame renderer (fromIntegral w) (fromIntegral h)
+  gameLoop (window,renderer) game
+
+-- Set up the window, etc and the initial game
+initializeWindow :: CInt -> CInt -> IO (Window,Renderer)
+initializeWindow width height = do
+  HintRenderScaleQuality $= ScaleLinear
+  do renderQuality <- get HintRenderScaleQuality
+     when (renderQuality /= ScaleLinear) $
+         putStrLn "Linear texture filtering not enabled!"
+
+  window <- createWindow "Game" defaultWindow{windowInitialSize = V2 width height}
+  showWindow window
+
+  renderer <- createRenderer window (-1) $ RendererConfig{rendererType = AcceleratedRenderer
+                                                         ,rendererTargetTexture = False
+                                                         }
+  rendererDrawColor renderer $= V4 maxBound maxBound maxBound maxBound
+  return (window,renderer)
+
+-- An initial Game where resources are loaded from "R/".
+initialGame :: Renderer -> CFloat -> CFloat -> IO Game
 initialGame renderer frameWidth frameHeight = do
   let quit     = False
 
@@ -65,7 +109,7 @@ initialGame renderer frameWidth frameHeight = do
                 ,(A.DistanceLess 256 `A.AndT` A.PlayerRight,A.WalkRight)
                 ,(A.PlayerRight,A.Spawn shootRight)
                 ]
-      shootRight ob = (moveThingBy (ob^. A.observeAgentPosition . lensP) bulletRightThing
+      shootRight ob = (moveThingBy (ob^. A.observeAgentPosition . pos) bulletRightThing
                       ,A.SomeAgent bulletRightAgent
                       )
       bulletRightThing = Thing bulletRightTile True False (Velocity $ V2 1 0) (fromJust $ mkCounter 1 0 1) NoHitBox
@@ -86,29 +130,47 @@ initialGame renderer frameWidth frameHeight = do
   -- Boundaries the camera should not move past
   let tileGrid = stage0^.stageBackground.backgroundTileGrid
       boundaryLeft   = 0
-      boundaryRight  = tileGridWidth tileGrid
+      boundaryRight  = fromIntegral . tileGridWidth $ tileGrid
       boundaryTop    = 0
-      boundaryBottom = tileGridHeight tileGrid
+      boundaryBottom = fromIntegral . tileGridHeight $ tileGrid
 
   --todo pan bottom edge
-  let panSubjectTL   = panTo (P $ V2 0 (tileGridHeight tileGrid - frameHeight))
+  let panSubjectTL   = panTo (Pos $ V2 0 (fromIntegral (tileGridHeight tileGrid) - frameHeight))
   let initialCamera  = panSubjectTL $ fromJust
-                                    $ mkCamera (V2 frameWidth frameHeight)
+                                    $ mkCamera (Size $ V2 frameWidth frameHeight)
                                                (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
   return $ Game quit stage0 0 stages initialCamera 1 0 1
 
--- Infer the boundaries of the current stage (as the most exteme edges of the background tiles)
--- and set it.
-inferCameraBoundaries :: Game -> Game
-inferCameraBoundaries g =
-  let tileGrid = g^.gameStage.stageBackground.backgroundTileGrid
-      l = 0
-      r = tileGridWidth tileGrid
-      u = 0
-      d = tileGridHeight tileGrid
-      boundaries = V4 l r u d
-    in over gameCamera (setBoundaries boundaries) g
+
+-- Main game loop
+gameLoop :: (Window,Renderer) -> Game -> IO ()
+gameLoop (window,renderer) game0 = do
+  -- Get commands as the result of keydowns
+  commands <- keyboardCommands
+  game1    <- updateTicks game0
+
+  -- calculate the next game state by the effect of all the commands
+  let game2 = runCommands game1 commands
+
+  -- Render the new game state, which returns whether to quit
+  (shouldQuit,game3) <- renderGame (window,renderer) game2
+  (if shouldQuit then quitGame else gameLoop) (window,renderer) game3
+
+-- Render a step of the game state
+renderGame :: (Window,Renderer) -> Game -> IO (Bool,Game)
+renderGame (window,renderer) game = if game^.gameQuit then return (True,game) else do
+  -- Screen to white
+  rendererDrawColor renderer $= white
+
+  -- Update the stage
+  let game' = set gameStage (tickStage (game^.gameTickDelta) (game^.gameStage)) game
+
+  -- Shoot a frame of the game
+  shoot (game'^.gameCamera) renderer (game'^.gameStage)
+
+  return (False,game')
+
 
 
 data Command
@@ -135,36 +197,62 @@ data Command
   | Quit
   deriving (Show,Eq)
 
+-- Commands to be issued as long as a key is still down
+keydownCommands :: M.Map Scancode Command
+keydownCommands = M.fromList
+  [(ScancodeLeft ,PanLeft)
+  ,(ScancodeRight,PanRight)
+  ,(ScancodeUp   ,PanUp)
+  ,(ScancodeDown ,PanDown)
+
+  ,(ScancodeW,MoveUp)
+  ,(ScancodeS,MoveDown)
+  ,(ScancodeA,MoveLeft)
+  ,(ScancodeD,MoveRight)
+
+  ,(ScancodeE ,Shoot)
+  ]
+
+-- Commands to be issued when a key is pressed
+keypressCommands :: M.Map Keycode Command
+keypressCommands = M.fromList
+  [(KeycodeZ,PrevStage)
+  ,(KeycodeX,NextStage)
+
+  ,(KeycodeComma ,DecreasePan)
+  ,(KeycodePeriod,IncreasePan)
+
+  ,(KeycodeSpace,Jump)
+
+  ,(KeycodeQ,Quit)
+
+  ,(KeycodeT,TrackSubject)
+  ]
+
+keyboardCommands :: IO [Command]
+keyboardCommands = do
+  pumpEvents
+  f <- getKeyboardState
+  let heldCommands = mapMaybe (\scancode -> if f scancode then M.lookup scancode keydownCommands else Nothing) $ M.keys keydownCommands
+
+  events <- pollEvents
+  let downCommands = mapMaybe (\event -> case eventPayload event of
+                                           KeyboardEvent kEv
+                                             | (keyboardEventKeyMotion kEv == Pressed) && (keyboardEventRepeat kEv == False)
+                                              ->  M.lookup (keysymKeycode . keyboardEventKeysym $ kEv) keypressCommands
+
+                                           _ -> Nothing
+                              )
+                              events
+
+  return $ nub $ heldCommands ++ downCommands
+
+
 -- Lower the case of the first character of some Text
 lowerCase :: Text -> Text
 lowerCase t = case uncons t of
   Nothing     -> t
   Just (c,cs) -> cons (toLower c) cs
-
--- Set up the window, etc and the initial game
-initializeWindow :: CInt -> CInt -> IO (Window,Renderer)
-initializeWindow width height = do
-  HintRenderScaleQuality $= ScaleLinear
-  do renderQuality <- get HintRenderScaleQuality
-     when (renderQuality /= ScaleLinear) $
-         putStrLn "Linear texture filtering not enabled!"
-
-  window <- createWindow "Game" defaultWindow{windowInitialSize = V2 width height}
-  showWindow window
-
-  renderer <- createRenderer window (-1) $ RendererConfig{rendererType = AcceleratedRenderer
-                                                         ,rendererTargetTexture = False
-                                                         }
-  rendererDrawColor renderer $= V4 maxBound maxBound maxBound maxBound
-  return (window,renderer)
-
-main :: IO ()
-main = do
-  let w = 640
-      h = 480
-  (window,renderer) <- initializeWindow w h
-  game <- initialGame renderer w h
-  gameLoop (window,renderer) game
 
 -- Update the Game state by the effect of a string of commands
 runCommands :: Game -> [Command] -> Game
@@ -234,84 +322,7 @@ runCommand c g = case c of
   Quit
     -> set gameQuit True g
 
--- Render a step of the game state
-stepGame :: (Window,Renderer) -> Game -> IO (Bool,Game)
-stepGame (window,renderer) game = if game^.gameQuit then return (True,game) else do
-  -- Screen to white
-  rendererDrawColor renderer $= white
 
-  -- Update the stage
-  let game' = set gameStage (tickStage (game^.gameTickDelta) (game^.gameStage)) game
-
-  -- Shoot a frame of the game
-  shoot (game'^.gameCamera) renderer (game'^.gameStage)
-
-  return (False,game')
-
-
--- Main game loop
-gameLoop :: (Window,Renderer) -> Game -> IO ()
-gameLoop (window,renderer) game0 = do
-  -- Get commands as the result of keydowns
-  commands <- keyboardCommands
-  game1 <- tickDelta game0
-
-  -- calculate the next game state by the effect of all the commands
-  let game2 = runCommands game1 commands
-
-  -- Render the new game state, which returns whether to quit
-  (shouldQuit,game3) <- stepGame (window,renderer) game2
-  (if shouldQuit then quitGame else gameLoop) (window,renderer) game3
-
--- Commands to be issued as long as a key is still down
-keydownCommands :: M.Map Scancode Command
-keydownCommands = M.fromList
-  [(ScancodeLeft ,PanLeft)
-  ,(ScancodeRight,PanRight)
-  ,(ScancodeUp   ,PanUp)
-  ,(ScancodeDown ,PanDown)
-
-  ,(ScancodeW,MoveUp)
-  ,(ScancodeS,MoveDown)
-  ,(ScancodeA,MoveLeft)
-  ,(ScancodeD,MoveRight)
-
-  ,(ScancodeE ,Shoot)
-  ]
-
--- Commands to be issued when a key is pressed
-keypressCommands :: M.Map Keycode Command
-keypressCommands = M.fromList
-  [(KeycodeZ,PrevStage)
-  ,(KeycodeX,NextStage)
-
-  ,(KeycodeComma ,DecreasePan)
-  ,(KeycodePeriod,IncreasePan)
-
-  ,(KeycodeSpace,Jump)
-
-  ,(KeycodeQ,Quit)
-
-  ,(KeycodeT,TrackSubject)
-  ]
-
-keyboardCommands :: IO [Command]
-keyboardCommands = do
-  pumpEvents
-  f <- getKeyboardState
-  let heldCommands = mapMaybe (\scancode -> if f scancode then M.lookup scancode keydownCommands else Nothing) $ M.keys keydownCommands
-
-  events <- pollEvents
-  let downCommands = mapMaybe (\event -> case eventPayload event of
-                                           KeyboardEvent kEv
-                                             | (keyboardEventKeyMotion kEv == Pressed) && (keyboardEventRepeat kEv == False)
-                                              ->  M.lookup (keysymKeycode . keyboardEventKeysym $ kEv) keypressCommands
-
-                                           _ -> Nothing
-                              )
-                              events
-
-  return $ nub $ heldCommands ++ downCommands
 
 
 quitGame :: (Window,Renderer) -> Game -> IO ()
@@ -327,13 +338,16 @@ safeIndex (x:xs) n
   | n < 0     = Nothing
   | otherwise = safeIndex xs (n-1)
 
-tickDelta :: Game -> IO Game
-tickDelta g = do
+-- Update the games knowledge of:
+-- - The total ticks since SDL was initialised
+-- - How many ticks have occured since the last call to this update function
+updateTicks :: Game -> IO Game
+updateTicks g = do
   total <- ticks
   let last  = g^.gameLastTicks
       delta = total - last
   return $ g{_gameLastTicks = total
-            ,_gameTickDelta = word32ToCInt delta `div` 10
+            ,_gameTickDelta = word32ToCInt delta 
             }
 
 word32ToCInt :: Word32 -> CInt

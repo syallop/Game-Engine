@@ -21,6 +21,8 @@ module Game.TileGrid
   where
 
 import Game.HitBox
+import Game.Position
+import Game.Size
 import Game.Tile
 import Game.TileSet
 
@@ -70,15 +72,15 @@ tileGridColumnCount :: TileGrid -> CInt
 tileGridColumnCount = toEnum . maximum . map (length . _row) . view (tileGridRows.rows)
 
 -- The absolute height of the tiles
-tileGridHeight :: TileGrid -> CInt
+tileGridHeight :: TileGrid -> CInt 
 tileGridHeight tg = tg^.tileGridUnitSize * tileGridRowCount tg
 
 -- The absolute width of the longest row of tiles
 tileGridWidth :: TileGrid -> CInt
 tileGridWidth tg = tg^.tileGridUnitSize * tileGridColumnCount tg
 
-renderTileGrid :: Point V2 CInt -> V2 CInt -> Renderer -> TileGrid -> IO ()
-renderTileGrid topLeft (V2 frameWidth frameHeight) renderer tileGrid = do
+renderTileGrid :: Pos -> Size -> Renderer -> TileGrid -> IO ()
+renderTileGrid topLeft (Size (V2 frameWidth frameHeight)) renderer tileGrid = do
   let tileUnitSize = tileGrid^.tileGridUnitSize
   -- TODO:
   -- - Due to the structure of Rows, and Row, as soon as we reach a tile we dont need to
@@ -94,16 +96,16 @@ renderTileGrid topLeft (V2 frameWidth frameHeight) renderer tileGrid = do
                                      -> error "tile type has no info in tileset"
 
                                  Just tTy
-                                     -> do let pos = (P $ V2 xPos yPos) - topLeft
+                                     -> do let pos = (Pos $ V2 (fromIntegral xPos) (fromIntegral yPos)) - topLeft
                                            -- TODO: Dont render things outside of the camera
-                                           renderTile renderer $ mkTile tTy (Rectangle pos (V2 tileUnitSize tileUnitSize))
+                                           renderTile renderer $ mkTile tTy (Rectangle (let Pos p = pos in P p) (V2 (fromIntegral tileUnitSize) (fromIntegral tileUnitSize)))
                                            return (xPos+tileUnitSize)
                          )
                          (0 :: CInt)
                          (r^.row)
                  return (yPos+tileUnitSize)
          )
-         (0 :: CInt)
+         (0 :: CInt) 
          (tileGrid^.tileGridRows.rows)
 
 
@@ -128,21 +130,21 @@ coversIndexes hb tg = case coversIndexRange hb tg of
 coversIndexRange :: HitBox -> TileGrid -> Maybe (V4 CInt)
 coversIndexRange hb tg = do
   V4 xLeft xRight yTop yBottom <- hitBoxBoundaries hb
-  V2 xLeftIx  yTopIx    <- posToIndex (P $ V2 xLeft  yTop)    tg
-  V2 xRightIx yBottomIx <- posToIndex (P $ V2 xRight yBottom) tg
+  V2 xLeftIx  yTopIx    <- posToIndex (Pos $ V2 xLeft  yTop)    tg
+  V2 xRightIx yBottomIx <- posToIndex (Pos $ V2 xRight yBottom) tg
   return $ V4 xLeftIx xRightIx yTopIx yBottomIx
 
 
 
 -- Convert an absolute position to an index in the TileGrid
-posToIndex :: Point V2 CInt -> TileGrid -> Maybe (V2 CInt)
-posToIndex (P (V2 x y)) tg
-  | indexInRange (V2 xIx yIx) tg = Just $ V2 xIx yIx
-  | otherwise                    = Nothing
+posToIndex :: Pos -> TileGrid -> Maybe (V2 CInt)
+posToIndex p tg
+  | indexInRange ixs tg = Just ixs
+  | otherwise           = Nothing
   where
-    xIx      = floor $ fromIntegral x / fromIntegral unitSize
-    yIx      = floor $ fromIntegral y / fromIntegral unitSize
-    unitSize = tg^.tileGridUnitSize
+    ixs      = integralPosition $ p / (Pos $ V2 unitSize unitSize) 
+    unitSize = fromIntegral $ tg^.tileGridUnitSize
+    
 
 -- Is an index withing the TileGrid?
 indexInRange :: V2 CInt -> TileGrid -> Bool

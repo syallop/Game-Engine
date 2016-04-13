@@ -26,6 +26,7 @@ import Linear hiding (trace)
 import Linear.Affine
 import qualified Data.Map as Map
 
+import Game.Position
 import Game.Thing
 
 data SomeAgent = forall s. (Show s,Eq s,Typeable s) => SomeAgent (Agent s)
@@ -91,7 +92,7 @@ instance Eq Action where
 
 -- Something which may trigger an agent to do something
 data Trigger
-  = DistanceLess CInt
+  = DistanceLess CFloat
   | AgentHealthHigher CInt
   | PlayerHealthHigher CInt
   | PlayerLeft
@@ -107,8 +108,8 @@ type Rules = Map.Map Trigger Action
 
 -- Information the agent observes to determine any triggers
 data Observe = Observe
-  {_observeAgentPosition  :: Point V2 CInt
-  ,_observePlayerPosition :: Point V2 CInt
+  {_observeAgentPosition  :: Pos 
+  ,_observePlayerPosition :: Pos
   ,_observeAgentHealth    :: CInt
   ,_observePlayerHealth   :: CInt
   }
@@ -122,9 +123,9 @@ triggerActions o guardF = foldr (\(t,a) acc -> if doesTrigger o t && guardF a th
 doesTrigger :: Observe -> Trigger -> Bool
 doesTrigger o t = case t of
   DistanceLess d
-    -> distance (fmap cIntToCFloat $ o^.observeAgentPosition.lensP)
-                (fmap cIntToCFloat $ o^.observePlayerPosition.lensP)
-       < cIntToCFloat d
+    -> distance (o^.observeAgentPosition.pos)
+                (o^.observePlayerPosition.pos)
+       < d
 
   AgentHealthHigher h
     -> h < o^.observeAgentHealth
@@ -133,16 +134,16 @@ doesTrigger o t = case t of
     -> h < o^.observePlayerHealth
 
   PlayerLeft
-    -> (o^.observePlayerPosition.lensP._x) < (o^.observeAgentPosition.lensP._x)
+    -> (o^.observePlayerPosition.pos._x) < (o^.observeAgentPosition.pos._x)
 
   PlayerRight
-    -> (o^.observeAgentPosition.lensP._x) < (o^.observePlayerPosition.lensP._x)
+    -> (o^.observeAgentPosition.pos._x) < (o^.observePlayerPosition.pos._x)
 
   PlayerUp
-    -> (o^.observePlayerPosition.lensP._y) < (o^.observeAgentPosition.lensP._y)
+    -> (o^.observePlayerPosition.pos._y) < (o^.observeAgentPosition.pos._y)
 
   PlayerDown
-    -> (o^.observeAgentPosition.lensP._y) < (o^.observePlayerPosition.lensP._y)
+    -> (o^.observeAgentPosition.pos._y) < (o^.observePlayerPosition.pos._y)
 
   AndT t1 t2
     -> doesTrigger o t1 && doesTrigger o t2

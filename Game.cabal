@@ -21,7 +21,7 @@ executable game
   other-extensions:    PatternSynonyms
                      , OverloadedStrings
 
-  build-depends:       base       >=4.7  && <4.8
+  build-depends:       base       >=4.7  && <4.9
                      , sdl2       >=2.1  && <2.2
                      , linear     >=1.20 && <1.21
                      , containers >=0.5  && <0.6

@@ -50,11 +50,11 @@ data Stage = Stage
   ,_stageThings          :: Collect (Thing,SomeAgent)
   ,_stageGravity         :: Force
 
-  ,_stageSpeedLimit      :: V2 CInt
-  ,_stageThingSpeedLimit :: V2 CInt
+  ,_stageSpeedLimit      :: Velocity 
+  ,_stageThingSpeedLimit :: Velocity 
 
-  ,_stageSubjectFriction :: CInt
-  ,_stageThingFriction   :: CInt
+  ,_stageSubjectFriction :: CFloat
+  ,_stageThingFriction   :: CFloat
   } deriving (Show,Eq)
 makeLenses ''Stage
 
@@ -78,10 +78,10 @@ setStage :: Background
          -> Subject
          -> Collect (Thing,SomeAgent)
          -> Force
-         -> V2 CInt
-         -> V2 CInt
-         -> CInt
-         -> CInt
+         -> Velocity
+         -> Velocity
+         -> CFloat
+         -> CFloat
          -> Maybe Stage
 setStage b
          s
@@ -100,7 +100,7 @@ moveSubjectDown  = moveSubjectDownBy  1
 moveSubjectUp    = moveSubjectUpBy    1
 -- Move a subject in a direction by a positive amount if they do not collide
 -- with the background
-moveSubjectRightBy, moveSubjectLeftBy, moveSubjectDownBy, moveSubjectUpBy :: CInt -> Stage -> Maybe Stage
+moveSubjectRightBy, moveSubjectLeftBy, moveSubjectDownBy, moveSubjectUpBy :: CFloat -> Stage -> Maybe Stage
 moveSubjectRightBy x = mapSubjectTile (moveTileR x)
 moveSubjectLeftBy  x = mapSubjectTile (moveTileL x)
 moveSubjectDownBy  y = mapSubjectTile (moveTileD y)
@@ -142,7 +142,7 @@ collidesStageThings stg thing = collidesThings thing (map (fst . fst) $ collecte
 -- Checks collision with the background and other things.
 applyVelocitySubject :: CInt -> Stage -> Stage
 applyVelocitySubject ticks stg =
-  over stageSubject (\subject -> tryMoveThingBy ((* V2 ticks ticks) $ stg^.stageSubject.thingVelocity.vel)
+  over stageSubject (\subject -> tryMoveThingBy ((* V2 (fromIntegral ticks :: CFloat) (fromIntegral ticks :: CFloat)) $ stg^.stageSubject.thingVelocity.vel)
                                                 (stg^.stageSubject)
                                                 (not . collidesAnything stg)) stg
 
@@ -153,7 +153,7 @@ applyVelocityThings :: CInt -> Stage -> Stage
 applyVelocityThings ticks stg = over (stageThings . traverse) (first applyVelocityThing) stg
   where
     applyVelocityThing :: Thing -> Thing
-    applyVelocityThing thing = tryMoveThingBy ((* V2 ticks ticks) $ thing^.thingVelocity.vel)
+    applyVelocityThing thing = tryMoveThingBy ((* V2 (fromIntegral ticks) (fromIntegral ticks)) $ thing^.thingVelocity.vel)
                                               thing
                                               (not . collidesStageBackgroundTileGrid stg . set thingIsSolid True) -- Force things to be considered solid against the background tiles
 
@@ -205,7 +205,7 @@ applyFrictionSubject stg
 applyFrictionThings :: Stage -> Stage
 applyFrictionThings stg = stageThings.traverse._1%~applyFrictionThing (stg^.stageThingFriction) $ stg
   where
-    applyFrictionThing :: CInt -> Thing -> Thing
+    applyFrictionThing :: CFloat -> Thing -> Thing
     applyFrictionThing l t
       -- Standing on a tile
       | collidesStageBackgroundTileGrid stg (stg^.stageSubject.to (moveThingBy (V2 0 1)))

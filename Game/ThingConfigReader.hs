@@ -49,7 +49,7 @@ thingConfigFmt = ConfigFmt
 
 -- Given a path to a directory of thing files and a tileset the things may use,
 -- create the things!
-parseThings :: FilePath -> TileSet -> CInt -> IO (Collect Thing)
+parseThings :: FilePath -> TileSet -> CFloat -> IO (Collect Thing)
 parseThings thingsPath tileset radius = do
   files <- listDirectory thingsPath
 
@@ -71,7 +71,7 @@ parseThings thingsPath tileset radius = do
 
   return $ mkCollect (map (\(name,thing) -> (thing,Name name)) things) []
 
-parseThing :: FilePath -> FilePath -> CInt -> TileSet -> IO (Maybe Thing)
+parseThing :: FilePath -> FilePath -> CFloat -> TileSet -> IO (Maybe Thing)
 parseThing thingFile thingsPath radius tileset = do
   res <- parseConfigFile thingConfigFmt (thingsPath ++ "/" ++ thingFile)
   case res of

@@ -47,6 +47,8 @@ module Game.Tile
   where
 
 import Game.HitBox
+import Game.Position
+import Game.Size
 
 import Control.Lens
 import Foreign.C.Types
@@ -106,93 +108,93 @@ loadTexture renderer fp = do
 
 data Tile = Tile
   {_tileType      :: TileType
-  ,_tileRectangle :: Rectangle CInt
+  ,_tileRectangle :: Rectangle CFloat
   }
   deriving (Eq,Show)
 makeLenses ''Tile
 
 -- Create a TileType at a position.
-mkTile :: TileType -> Rectangle CInt -> Tile
+mkTile :: TileType -> Rectangle CFloat -> Tile
 mkTile = Tile
 
 -- A non-solid, white,1by1 tile at 0,0
 defaultTile :: Tile
 defaultTile = mkTile (TileTypeColored white False) (Rectangle (P $ V2 0 0) (V2 1 1))
 
-tilePos :: Lens' Tile (Point V2 CInt)
+tilePos :: Lens' Tile Pos 
 tilePos = tileRectangle.rectPos
 
-tilePosX :: Lens' Tile CInt
-tilePosX = tilePos.lensP._x
+tilePosX :: Lens' Tile CFloat
+tilePosX = tilePos.pos._x
 
-tilePosY :: Lens' Tile CInt
-tilePosY = tilePos.lensP._y
+tilePosY :: Lens' Tile CFloat
+tilePosY = tilePos.pos._y
 
-tileSize :: Lens' Tile (V2 CInt)
+tileSize :: Lens' Tile Size 
 tileSize = tileRectangle.rectSize
 
-tileWidth :: Lens' Tile CInt
-tileWidth = tileSize._x
+tileWidth :: Lens' Tile CFloat
+tileWidth = tileSize.size._x
 
-tileHeight :: Lens' Tile CInt
-tileHeight = tileSize._y
+tileHeight :: Lens' Tile CFloat
+tileHeight = tileSize.size._y
 
-tileL :: Lens' Tile CInt
+tileL :: Lens' Tile CFloat
 tileL = tilePosX
 
-tileR :: Lens' Tile CInt
+tileR :: Lens' Tile CFloat
 tileR = lens (\t -> (t^.tileL) + (t^.tileWidth)) (\t r -> tileL .~ (r - (t^.tileWidth)) $ t)
 
-tileT :: Lens' Tile CInt
+tileT :: Lens' Tile CFloat
 tileT = tilePosY
 
-tileB :: Lens' Tile CInt
+tileB :: Lens' Tile CFloat
 tileB = lens (\t -> (t^.tileT) + (t^.tileHeight)) (\t b -> tileT .~ (b - (t^.tileHeight)) $ t)
 
-tileTL :: Lens' Tile (Point V2 CInt)
+tileTL :: Lens' Tile Pos 
 tileTL = tilePos
 
-tileTR :: Lens' Tile (Point V2 CInt)
-tileTR = lens (\t -> (t^.tileTL) + (P $ V2 (t^.tileWidth) 0)) (\t tr -> tilePos .~ (tr - (P $ V2 (t^.tileWidth) 0)) $ t)
+tileTR :: Lens' Tile Pos 
+tileTR = lens (\t -> (t^.tileTL) + (Pos $ V2 (t^.tileWidth) 0)) (\t tr -> tilePos .~ (tr - (Pos $ V2 (t^.tileWidth) 0)) $ t)
 
-tileBL :: Lens' Tile (Point V2 CInt)
-tileBL = lens (\t -> (t^.tileTL) + (P $ V2 0 (t^.tileHeight))) (\t bl -> tilePos .~ (bl - (P $ V2 0 (t^.tileHeight))) $ t)
+tileBL :: Lens' Tile Pos 
+tileBL = lens (\t -> (t^.tileTL) + (Pos $ V2 0 (t^.tileHeight))) (\t bl -> tilePos .~ (bl - (Pos $ V2 0 (t^.tileHeight))) $ t)
 
-tileBR :: Lens' Tile (Point V2 CInt)
-tileBR = lens (\t -> (t^.tileTL) + (P $ V2 (t^.tileWidth) (t^.tileHeight))) (\t br -> tilePos .~ (br - (P $ V2 (t^.tileWidth) (t^.tileHeight))) $ t)
+tileBR :: Lens' Tile Pos 
+tileBR = lens (\t -> (t^.tileTL) + (Pos $ V2 (t^.tileWidth) (t^.tileHeight))) (\t br -> tilePos .~ (br - (Pos $ V2 (t^.tileWidth) (t^.tileHeight))) $ t)
 
-tileCenter :: Lens' Tile (Point V2 CInt)
-tileCenter = lens (\t -> (t^.tileTL) + (P $ V2 (t^.tileWidth `div` 2) (t^.tileHeight `div` 2))) (\t c -> tilePos .~ (c - (P $ V2 (t^.tileWidth `div` 2) (t^.tileHeight `div` 2))) $ t)
+tileCenter :: Lens' Tile Pos 
+tileCenter = lens (\t -> (t^.tileTL) + (Pos $ V2 (t^.tileWidth / 2) (t^.tileHeight / 2))) (\t c -> tilePos .~ (c - (Pos $ V2 (t^.tileWidth / 2) (t^.tileHeight / 2))) $ t)
 
 -- Move a tile right and down by the given offset
-moveTile :: V2 CInt -> Tile -> Tile
-moveTile o = tilePos+~P o
+moveTile :: V2 CFloat -> Tile -> Tile
+moveTile o = tilePos+~Pos o
 
 -- move a tile right
-moveTileR :: CInt -> Tile -> Tile
-moveTileR r = tilePos+~(P $ V2 r 0)
+moveTileR :: CFloat -> Tile -> Tile
+moveTileR r = tilePos+~(Pos $ V2 r 0)
 
 -- move a tile left
-moveTileL :: CInt -> Tile -> Tile
+moveTileL :: CFloat -> Tile -> Tile
 moveTileL l = moveTileR (-1*l)
 
 -- move a tile down
-moveTileD :: CInt -> Tile -> Tile
-moveTileD d = tilePos+~(P $ V2 0 d)
+moveTileD :: CFloat -> Tile -> Tile
+moveTileD d = tilePos+~(Pos $ V2 0 d)
 
 -- move a tile up
-moveTileU :: CInt -> Tile -> Tile
+moveTileU :: CFloat -> Tile -> Tile
 moveTileU u = moveTileD (-1* u)
 
 -- draw a tile
 renderTile :: Renderer -> Tile -> IO ()
 renderTile renderer t = case t^.tileType of
   TileTypeTextured tex _
-    -> copy renderer tex Nothing $ Just $ t^.tileRectangle
+    -> copy renderer tex Nothing $ Just $ floor <$> t^.tileRectangle
 
   TileTypeColored color _
     -> do rendererDrawColor renderer $= color
-          fillRect renderer $ Just $ t^.tileRectangle
+          fillRect renderer $ Just $ floor <$> t^.tileRectangle
 
   TileTypeInvisible _
     -> return ()

@@ -24,6 +24,7 @@ import Game.Collect
 import Game.Counter
 import Game.Force
 import Game.HitBox
+import Game.Position
 import Game.Stage
 import Game.Thing
 import Game.Tile
@@ -48,39 +49,39 @@ import Debug.Trace
 
 stageConfigFmt :: ConfigFmt
 stageConfigFmt = ConfigFmt
-  [(OptionPairFmt (OptionFmt "gravity"     [SomeArgFmt ArgFmtInt
-                                           ,SomeArgFmt ArgFmtInt
+  [(OptionPairFmt (OptionFmt "gravity"     [SomeArgFmt ArgFmtFloat
+                                           ,SomeArgFmt ArgFmtFloat
                                            ])
                   (OptionFmt "gravityless" [])
-                  ,DefaultFmt True         [SomeArg (ArgInt 0)
-                                           ,SomeArg (ArgInt 1)
+                  ,DefaultFmt True         [SomeArg (ArgFloat 0)
+                                           ,SomeArg (ArgFloat 1)
                                            ])
 
   ,(OptionPairFmt (OptionFmt "tileset"      [SomeArgFmt ArgFmtText])
                   (OptionFmt "emptyTileset" [])
                   ,DefaultFmt False         [])
 
-  ,(OptionPairFmt (OptionFmt "unitSize"      [SomeArgFmt ArgFmtInt])
+  ,(OptionPairFmt (OptionFmt "unitSize"      [SomeArgFmt ArgFmtFloat])
                   (OptionFmt "emptyUnitSize" [])
-                  ,DefaultFmt True              [SomeArg $ ArgInt 64])
+                  ,DefaultFmt True              [SomeArg $ ArgFloat 64])
 
   ,(OptionPairFmt (OptionFmt "baseThings"      [SomeArgFmt ArgFmtText])
                   (OptionFmt "emptyBaseThings" [])
                   ,DefaultFmt False            [])
 
-  ,(OptionPairFmt (OptionFmt "subjectSpeedLimit"      [SomeArgFmt ArgFmtInt, SomeArgFmt ArgFmtInt])
+  ,(OptionPairFmt (OptionFmt "subjectSpeedLimit"      [SomeArgFmt ArgFmtFloat, SomeArgFmt ArgFmtFloat])
                   (OptionFmt "emptySubjectSpeedLimit" [])
                   ,DefaultFmt False                   [])
 
-  ,(OptionPairFmt (OptionFmt "thingSpeedLimit"      [SomeArgFmt ArgFmtInt, SomeArgFmt ArgFmtInt])
+  ,(OptionPairFmt (OptionFmt "thingSpeedLimit"      [SomeArgFmt ArgFmtFloat, SomeArgFmt ArgFmtFloat])
                   (OptionFmt "emptyThingSpeedLimit" [])
                   ,DefaultFmt False                 [])
 
-  ,(OptionPairFmt (OptionFmt "subjectFriction"      [SomeArgFmt ArgFmtInt])
+  ,(OptionPairFmt (OptionFmt "subjectFriction"      [SomeArgFmt ArgFmtFloat])
                   (OptionFmt "emptySubjectFriction" [])
                   ,DefaultFmt False                 [])
 
-  ,(OptionPairFmt (OptionFmt "thingFriction"      [SomeArgFmt ArgFmtInt])
+  ,(OptionPairFmt (OptionFmt "thingFriction"      [SomeArgFmt ArgFmtFloat])
                   (OptionFmt "emptyThingFriction" [])
                   ,DefaultFmt False               [])
 
@@ -92,30 +93,30 @@ thingInstanceConfigFmt = ConfigFmt
                   (OptionFmt "nothing" [])
                   ,DefaultFmt False    [])
 
-  ,(OptionPairFmt (OptionFmt "positioned"   [SomeArgFmt ArgFmtInt
-                                            ,SomeArgFmt ArgFmtInt
+  ,(OptionPairFmt (OptionFmt "positioned"   [SomeArgFmt ArgFmtFloat
+                                            ,SomeArgFmt ArgFmtFloat
                                             ])
                   (OptionFmt "unpositioned" [])
                   ,DefaultFmt False         [])
 
-  ,(OptionPairFmt (OptionFmt "moving"     [SomeArgFmt ArgFmtInt
-                                          ,SomeArgFmt ArgFmtInt
+  ,(OptionPairFmt (OptionFmt "moving"     [SomeArgFmt ArgFmtFloat
+                                          ,SomeArgFmt ArgFmtFloat
                                           ])
                   (OptionFmt "stationary" [])
                   ,DefaultFmt False       [])
 
-  ,(OptionPairFmt (OptionFmt "width"        [SomeArgFmt ArgFmtInt])
+  ,(OptionPairFmt (OptionFmt "width"        [SomeArgFmt ArgFmtFloat])
                   (OptionFmt "inheritWidth" [])
                   ,DefaultFmt False         [])
 
-  ,(OptionPairFmt (OptionFmt "height"        [SomeArgFmt ArgFmtInt])
+  ,(OptionPairFmt (OptionFmt "height"        [SomeArgFmt ArgFmtFloat])
                   (OptionFmt "inheritHeight" [])
                   ,DefaultFmt False          [])
 
-  ,(OptionPairFmt (OptionFmt "hitbox"    [SomeArgFmt ArgFmtInt -- x
-                                         ,SomeArgFmt ArgFmtInt -- y
-                                         ,SomeArgFmt ArgFmtInt -- width
-                                         ,SomeArgFmt ArgFmtInt -- height
+  ,(OptionPairFmt (OptionFmt "hitbox"    [SomeArgFmt ArgFmtFloat -- x
+                                         ,SomeArgFmt ArgFmtFloat -- y
+                                         ,SomeArgFmt ArgFmtFloat -- width
+                                         ,SomeArgFmt ArgFmtFloat -- height
                                          ])
                   (OptionFmt "emptyHitBox"  [])
                   ,DefaultFmt False      [])
@@ -166,14 +167,14 @@ parseStage agents stageDir stagesPath renderer = do
       -> return Nothing
 
     Right stageConfig
-      -> do let gravity           = fromArgs "gravity"           (\[SomeArg (ArgInt x),SomeArg (ArgInt y)] -> Force $ V2 (conv x) (conv y)) (Force $ V2 0 0) stageConfig
-                unitSize          = fromArgs "unitSize"          (\[SomeArg (ArgInt i)] -> conv i)                                          0                stageConfig
-                baseThingsName    = fromArgs "baseThings"        (\[SomeArg (ArgText n)] -> n)                                              ""               stageConfig
-                tileSetName       = fromArgs "tileset"           (\[SomeArg (ArgText n)] -> n)                                              ""               stageConfig
-                subjectSpeedLimit = fromArgs "subjectSpeedLimit" (\[SomeArg (ArgInt x),SomeArg (ArgInt y)] -> V2 (conv x) (conv y))         (V2 100 100)     stageConfig
-                thingSpeedLimit   = fromArgs "thingSpeedLimit"   (\[SomeArg (ArgInt x),SomeArg (ArgInt y)] -> V2 (conv x) (conv y))         (V2 100 100)     stageConfig
-                subjectFriction   = fromArgs "subjectFriction"   (\[SomeArg (ArgInt i)] -> conv i)                                          1                stageConfig
-                thingFriction     = fromArgs "thingFriction"     (\[SomeArg (ArgInt i)] -> conv i)                                          1                stageConfig
+      -> do let gravity           = fromArgs "gravity"           (\[SomeArg (ArgFloat x),SomeArg (ArgFloat y)] -> Force $ V2 (conv x) (conv y)) (Force $ V2 0 0) stageConfig
+                unitSize          = fromArgs "unitSize"          (\[SomeArg (ArgFloat i)] -> conv i)                                            0                stageConfig
+                baseThingsName    = fromArgs "baseThings"        (\[SomeArg (ArgText n)] -> n)                                                  ""               stageConfig
+                tileSetName       = fromArgs "tileset"           (\[SomeArg (ArgText n)] -> n)                                                  ""               stageConfig
+                subjectSpeedLimit = fromArgs "subjectSpeedLimit" (\[SomeArg (ArgFloat x),SomeArg (ArgFloat y)] -> Velocity $ V2 (conv x) (conv y)) (Velocity $ V2 100 100)     stageConfig
+                thingSpeedLimit   = fromArgs "thingSpeedLimit"   (\[SomeArg (ArgFloat x),SomeArg (ArgFloat y)] -> Velocity $ V2 (conv x) (conv y)) (Velocity $ V2 100 100)     stageConfig
+                subjectFriction   = fromArgs "subjectFriction"   (\[SomeArg (ArgFloat i)] -> conv i)                                            1                stageConfig
+                thingFriction     = fromArgs "thingFriction"     (\[SomeArg (ArgFloat i)] -> conv i)                                            1                stageConfig
 
             -- Load the stages tileset
             tileset <- parseTileSet ("R/Tilesets/" ++ unpack tileSetName) renderer
@@ -201,13 +202,13 @@ parseStage agents stageDir stagesPath renderer = do
                         Nothing         -> return Nothing
                         Just background -> return $ setStage background player otherThings gravity subjectSpeedLimit thingSpeedLimit subjectFriction thingFriction
   where
-    conv :: Int -> CInt
-    conv = toEnum . fromEnum
+    conv :: Float -> CFloat
+    conv = CFloat 
 
-parseBackground :: FilePath -> TileSet -> Aliases -> CInt -> Renderer -> IO (Maybe Background )
+parseBackground :: FilePath -> TileSet -> Aliases -> CFloat -> Renderer -> IO (Maybe Background )
 parseBackground stagePath tileset aliases unitSize renderer = do
   mTexture <- loadTexture renderer (stagePath ++ "/background.bmp")
-  mTileGrid <- parseTileGrid stagePath tileset aliases unitSize
+  mTileGrid <- parseTileGrid stagePath tileset aliases (floor unitSize)
   case mTileGrid of
     -- failed to parse tiles, abort!
     -- TODO: could instead create empty tiles?
@@ -262,13 +263,13 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
              Nothing -> return Nothing
 
              Just thingName
-               -> let positionOffset = fromArgs "positioned" (\[SomeArg (ArgInt oX),SomeArg (ArgInt oY)]
+               -> let positionOffset = fromArgs "positioned" (\[SomeArg (ArgFloat oX),SomeArg (ArgFloat oY)]
                                                                -> V2 (conv oX) (conv oY)
                                                              ) (V2 0 0) thingInstanceConfig
-                      velocity       = fromArgs "moving"     (\[SomeArg (ArgInt vX),SomeArg (ArgInt vY)]
-                                                               -> V2 (conv vX) (conv vY)
-                                                             ) (V2 0 0) thingInstanceConfig
-                      hitBox         = fromArgs "hitbox"     (\[SomeArg (ArgInt x),SomeArg (ArgInt y),SomeArg (ArgInt w),SomeArg (ArgInt h)]
+                      velocity       = fromArgs "moving"     (\[SomeArg (ArgFloat vX),SomeArg (ArgFloat vY)]
+                                                               -> Velocity $ V2 (conv vX) (conv vY)
+                                                             ) (Velocity $ V2 0 0) thingInstanceConfig
+                      hitBox         = fromArgs "hitbox"     (\[SomeArg (ArgFloat x),SomeArg (ArgFloat y),SomeArg (ArgFloat w),SomeArg (ArgFloat h)]
                                                                -> HitBoxRect (Rectangle (P $ V2 (conv x) (conv y)) (V2 (conv w) (conv h)))
                                                              ) NoHitBox thingInstanceConfig
 
@@ -284,10 +285,10 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                            -> return Nothing
 
                          Just (baseThing,_)
-                           -> do let thingWidth  = fromArgs "width"  (\[SomeArg (ArgInt w)] -> conv w) (baseThing^.thingTile.tileWidth)  thingInstanceConfig
-                                     thingHeight = fromArgs "height" (\[SomeArg (ArgInt h)] -> conv h) (baseThing^.thingTile.tileHeight) thingInstanceConfig
+                           -> do let thingWidth  = fromArgs "width"  (\[SomeArg (ArgFloat w)] -> conv w) (baseThing^.thingTile.tileWidth)  thingInstanceConfig
+                                     thingHeight = fromArgs "height" (\[SomeArg (ArgFloat h)] -> conv h) (baseThing^.thingTile.tileHeight) thingInstanceConfig
 
-                                 return $ Just ( set thingVelocity (Velocity velocity)
+                                 return $ Just ( set thingVelocity velocity
                                                . set (thingTile.tileWidth) thingWidth
                                                . set (thingTile.tileHeight) thingHeight
                                                . set thingHitBox hitBox
@@ -297,6 +298,6 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                                                ,agent)
 
   where
-    conv :: Int -> CInt
-    conv = toEnum . fromEnum
+    conv :: Float -> CFloat 
+    conv = CFloat 
 
