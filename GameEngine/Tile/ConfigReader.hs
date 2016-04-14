@@ -3,7 +3,7 @@
   , OverloadedStrings
   , TupleSections
   #-}
-module GameEngine.TileConfigReader
+module GameEngine.Tile.ConfigReader
   (tileConfigFmt
   ,parseTileType
   )

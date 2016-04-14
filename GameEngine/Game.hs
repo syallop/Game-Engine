@@ -30,11 +30,11 @@ import GameEngine.HitBox
 import GameEngine.Position
 import GameEngine.Size
 import GameEngine.Stage
-import GameEngine.StageConfigReader
+import GameEngine.Stage.ConfigReader
 import GameEngine.Thing
-import GameEngine.ThingConfigReader
+import GameEngine.Thing.ConfigReader
 import GameEngine.Tile
-import GameEngine.TileConfigReader
+import GameEngine.Tile.ConfigReader
 import GameEngine.TileGrid
 import GameEngine.TileSet
 import GameEngine.Velocity

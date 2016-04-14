@@ -3,7 +3,7 @@
   , OverloadedStrings
   , TupleSections
   #-}
-module GameEngine.TileSetConfigReader
+module GameEngine.TileSet.ConfigReader
   (parseTileSet
   )
   where
@@ -17,7 +17,7 @@ import GameEngine.ConfigReader.Option
 import GameEngine.ConfigReader.OptionFmt
 
 import GameEngine.Tile
-import GameEngine.TileConfigReader
+import GameEngine.Tile.ConfigReader
 import GameEngine.TileSet
 
 import Control.Applicative

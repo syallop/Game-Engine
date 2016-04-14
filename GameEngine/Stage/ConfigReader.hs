@@ -3,7 +3,7 @@
   , OverloadedStrings
   , TupleSections
   #-}
-module GameEngine.StageConfigReader where
+module GameEngine.Stage.ConfigReader where
 
 import GameEngine.ConfigReader
 import GameEngine.ConfigReader.Arg
@@ -13,10 +13,10 @@ import GameEngine.ConfigReader.ConfigFmt
 import GameEngine.ConfigReader.Option
 import GameEngine.ConfigReader.OptionFmt
 
-import GameEngine.ThingConfigReader
-import GameEngine.TileConfigReader
-import GameEngine.TileGridConfigReader
-import GameEngine.TileSetConfigReader
+import GameEngine.Thing.ConfigReader
+import GameEngine.Tile.ConfigReader
+import GameEngine.TileGrid.ConfigReader
+import GameEngine.TileSet.ConfigReader
 
 import GameEngine.Agent
 import GameEngine.Background

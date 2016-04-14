@@ -3,7 +3,7 @@
   , TupleSections
   , OverloadedStrings
   #-}
-module GameEngine.ThingConfigReader where
+module GameEngine.Thing.ConfigReader where
 
 import GameEngine.ConfigReader
 import GameEngine.ConfigReader.Arg

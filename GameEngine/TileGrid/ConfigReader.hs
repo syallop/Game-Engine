@@ -3,7 +3,7 @@
   , OverloadedStrings
   , TupleSections
   #-}
-module GameEngine.TileGridConfigReader
+module GameEngine.TileGrid.ConfigReader
   (parseTileGrid
   ,Aliases
   ,Alias
