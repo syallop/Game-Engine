@@ -18,12 +18,12 @@ import GameEngine.Tile.ConfigReader
 import GameEngine.TileGrid.ConfigReader
 import GameEngine.TileSet.ConfigReader
 
-import GameEngine.Agent
 import GameEngine.Background
 import GameEngine.Collect
 import GameEngine.Counter
 import GameEngine.Force
 import GameEngine.HitBox
+import GameEngine.Live
 import GameEngine.Position
 import GameEngine.Stage
 import GameEngine.Thing
@@ -135,7 +135,7 @@ thingInstanceConfigFmt = ConfigFmt
 type Stages = Map.Map Text Stage
 
 -- given a path to a directory of stage directories, load all the stages
-parseStages :: Collect SomeAgent -> FilePath -> Renderer -> IO Stages
+parseStages :: Collect StageAgent -> FilePath -> Renderer -> IO Stages
 parseStages agents stagesPath renderer = do
   files <- listDirectory stagesPath
 
@@ -158,7 +158,7 @@ parseStages agents stagesPath renderer = do
   return $ Map.fromList stages
 
 -- given a path to a stage directory, load all its dependencies and assemble the stage.
-parseStage :: Collect SomeAgent -> FilePath -> FilePath -> Renderer -> IO (Maybe Stage)
+parseStage :: Collect StageAgent -> FilePath -> FilePath -> Renderer -> IO (Maybe Stage)
 parseStage agents stageDir stagesPath renderer = do
   res <- parseConfigFile stageConfigFmt (stagesPath ++ "/" ++ stageDir ++ "/stage")
   case res of
@@ -196,14 +196,21 @@ parseStage agents stageDir stagesPath renderer = do
               Nothing
                 -> return Nothing
 
-              Just ((player, _),_)
-                -> do mBackground <- parseBackground (stagesPath ++ "/" ++ stageDir) tileset aliases unitSize renderer
+              {-Just ((player, _),_)-}
+                {--> do mBackground <- parseBackground (stagesPath ++ "/" ++ stageDir) tileset aliases unitSize renderer-}
+                      {-case mBackground of-}
+                        {-Nothing         -> return Nothing-}
+                        {-Just background -> return $ setStage background player otherThings gravity subjectSpeedLimit thingSpeedLimit subjectFriction thingFriction-}
+
+              Just (repPlayer,_)
+                -> do let player = repPlayer^.reproducing. to (`withLiveClient` _client)
+                      mBackground <- parseBackground (stagesPath ++ "/" ++ stageDir) tileset aliases unitSize renderer
                       case mBackground of
                         Nothing         -> return Nothing
                         Just background -> return $ setStage background player otherThings gravity subjectSpeedLimit thingSpeedLimit subjectFriction thingFriction
   where
     conv :: Float -> CFloat
-    conv = CFloat 
+    conv = CFloat
 
 parseBackground :: FilePath -> TileSet -> Aliases -> CFloat -> Renderer -> IO (Maybe Background )
 parseBackground stagePath tileset aliases unitSize renderer = do
@@ -222,7 +229,7 @@ parseBackground stagePath tileset aliases unitSize renderer = do
 -- Given a set of base things which may be inherited from and a path to a directory of thing instance files,
 -- parse each thing instance file and instantiate the base thing with the given configuration options.
 -- Fileformat: NAME.thinginstance
-parseThingInstances :: Collect Thing -> Collect SomeAgent -> FilePath -> IO (Collect (Thing,SomeAgent))
+parseThingInstances :: Collect Thing -> Collect StageAgent -> FilePath -> IO (Collect StageReproducing)
 parseThingInstances baseThings agents stagePath = do
   files <- listDirectory stagePath
 
@@ -230,11 +237,11 @@ parseThingInstances baseThings agents stagePath = do
   let thingInstanceFiles = filter ((== "thinginstance") . extension) files
 
   -- Associate the NAME of all thing instnace files to their parsed things
-  -- mThingInstances :: [(Text,Maybe (Thing,Agent))]
+  -- mThingInstances :: [(Text,Maybe (Reproducing Thing Pos ()))]
   mThingInstances <- mapM (\thingFile -> (pack . name $ thingFile,) <$> parseThingInstance baseThings agents thingFile stagePath) thingInstanceFiles
 
   -- Silently drop all where the config file failed to parse
-  let thingInstances :: [(Text,(Thing,SomeAgent))]
+  let thingInstances :: [(Text,StageReproducing)]
       thingInstances = foldr (\(name,mThingInstance) acc -> case mThingInstance of
                                                               Nothing            -> acc
                                                               Just thingInstance -> (name,thingInstance):acc
@@ -244,9 +251,10 @@ parseThingInstances baseThings agents stagePath = do
 
   return $ mkCollect (map (\(n,t) -> (t,Name n)) thingInstances) []
 
+
 -- Given a context of base Things, a thing instance file under a stage filepath,
 -- parse the thing instance file and create a thing, inheriting from the base thing.
-parseThingInstance :: Collect Thing -> Collect SomeAgent -> FilePath -> FilePath -> IO (Maybe (Thing,SomeAgent))
+parseThingInstance :: Collect Thing -> Collect StageAgent -> FilePath -> FilePath -> IO (Maybe StageReproducing)
 parseThingInstance baseThings agents thingInstanceFile stagePath = do
   res <- parseConfigFile thingInstanceConfigFmt (stagePath ++ "/" ++ thingInstanceFile)
   case res of
@@ -275,7 +283,9 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
 
                       maxHealth      = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 3 thingInstanceConfig
 
-                      agent          = fromArgs "agent"     (\[SomeArg (ArgText a)] -> maybe (SomeAgent emptyAgent) fst $ lookupName (Name a) agents) (SomeAgent emptyAgent) thingInstanceConfig
+                      emptyAgent :: StageAgent
+                      emptyAgent = mkAgent () (\(sub,thing) () -> ("",()))
+                      agent      = fromArgs "agent"     (\[SomeArg (ArgText a)] -> maybe emptyAgent fst $ lookupName (Name a) agents) emptyAgent thingInstanceConfig
 
                       mBaseThing = lookupName thingName baseThings
                      in -- If the base thing exists, inherit from it and modify by any config values
@@ -288,16 +298,16 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                            -> do let thingWidth  = fromArgs "width"  (\[SomeArg (ArgFloat w)] -> conv w) (baseThing^.thingTile.tileWidth)  thingInstanceConfig
                                      thingHeight = fromArgs "height" (\[SomeArg (ArgFloat h)] -> conv h) (baseThing^.thingTile.tileHeight) thingInstanceConfig
 
-                                 return $ Just ( set thingVelocity velocity
-                                               . set (thingTile.tileWidth) thingWidth
-                                               . set (thingTile.tileHeight) thingHeight
-                                               . set thingHitBox hitBox
-                                               . set thingHealth (fromJust $ mkCounter maxHealth 0 maxHealth)
-                                               . moveThingBy positionOffset
-                                               $ baseThing
-                                               ,agent)
+                                 let thing = set thingVelocity velocity
+                                           . set (thingTile.tileWidth) thingWidth
+                                           . set (thingTile.tileHeight) thingHeight
+                                           . set thingHitBox hitBox
+                                           . set thingHealth (fromJust $ mkCounter maxHealth 0 maxHealth)
+                                           . moveThingBy positionOffset
+                                           $ baseThing
 
+                                 return $ Just $ mkReproducing $ mkLive (stageClient thing) agent
   where
-    conv :: Float -> CFloat 
-    conv = CFloat 
+    conv :: Float -> CFloat
+    conv = CFloat
 

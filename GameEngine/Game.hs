@@ -20,13 +20,13 @@ import Linear.Affine (Point(..),lensP)
 import SDL
 import qualified Data.Map as M
 
-import qualified GameEngine.Agent as A
 import GameEngine.Background
 import GameEngine.Camera
 import GameEngine.Collect
 import GameEngine.Counter
 import GameEngine.Force
 import GameEngine.HitBox
+import GameEngine.Live
 import GameEngine.Position
 import GameEngine.Size
 import GameEngine.Stage
@@ -50,7 +50,7 @@ data Game = Game
   ,_gameStages    :: Stages -- all the possible stages
 
   ,_gameCamera    :: Camera
-  ,_gamePanSpeed  :: CFloat 
+  ,_gamePanSpeed  :: CFloat
 
   ,_gameLastTicks :: Word32 -- Number of ticks since initialisation. 
   ,_gameTickDelta :: CInt   -- Number of ticks since last check. 
@@ -99,29 +99,14 @@ initializeWindow width height = do
   rendererDrawColor renderer $= V4 maxBound maxBound maxBound maxBound
   return (window,renderer)
 
+
+
 -- An initial Game where resources are loaded from "R/".
 initialGame :: Renderer -> CFloat -> CFloat -> IO Game
 initialGame renderer frameWidth frameHeight = do
   let quit     = False
 
-  let shootingAgent = fromJust $ A.mkAgent () (\_ _ -> True) $ M.fromList
-                [(A.DistanceLess 256 `A.AndT` A.PlayerLeft,A.WalkLeft)
-                ,(A.DistanceLess 256 `A.AndT` A.PlayerRight,A.WalkRight)
-                ,(A.PlayerRight,A.Spawn shootRight)
-                ]
-      shootRight ob = (moveThingBy (ob^. A.observeAgentPosition . pos) bulletRightThing
-                      ,A.SomeAgent bulletRightAgent
-                      )
-      bulletRightThing = Thing bulletRightTile True False (Velocity $ V2 1 0) (fromJust $ mkCounter 1 0 1) NoHitBox
-      bulletRightAgent = A.emptyAgent
-      bulletRightTile  = mkTile (TileTypeColored (V4 1 0 0 1) True) (Rectangle (P $ V2 0 0) (V2 5 5))
-
-      movingAgent = fromJust $ A.mkAgent () (\_ _ -> True) $ M.fromList
-                [(A.DistanceLess 256 `A.AndT` A.PlayerLeft, A.WalkLeft)
-                ,(A.DistanceLess 256 `A.AndT` A.PlayerRight,A.WalkRight)
-                ]
-
-  let agents = mkCollect [(A.SomeAgent shootingAgent,"shootingAgent"),(A.SomeAgent movingAgent, "movingAgent")] []
+  let agents = mkCollect [(movingAgent, "movingAgent"),(shootingAgent, "shootingAgent")] []
 
   -- Load a stage
   stages <- parseStages agents "R/Stages" renderer
@@ -141,6 +126,53 @@ initialGame renderer frameWidth frameHeight = do
                                                (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
   return $ Game quit stage0 0 stages initialCamera 1 0 1
+
+  where
+    movingAgent :: Agent (Subject,Thing) Text
+    movingAgent = mkAgent initialState actF
+      where
+        initialState = ()
+
+        actF :: (Subject,Thing) -> () -> (Text,())
+        actF (subject,selfThing) st
+          -- subject left => walk left
+          | subject^.thingTile.tilePosX < selfThing^.thingTile.tilePosX
+           = ("walkleft",st)
+
+          -- we're left => walk right
+          | selfThing^.thingTile.tilePosX < subject^.thingTile.tilePosX
+           = ("walkright",st)
+
+          | otherwise
+           = ("",st)
+
+    shootingAgent :: Agent (Subject,Thing) Text
+    shootingAgent = mkAgent reloadRate actF
+      where
+        reloadRate :: Int
+        reloadRate = 5
+
+        actF :: (Subject,Thing) -> Int -> (Text,Int)
+        actF (subject,selfThing) st
+
+          -- enough time has passed to shoot, subject is left => shootleft
+          | st == 0 && subject^.thingTile.tilePosX < selfThing^.thingTile.tilePosX
+           = ("shootleft",5)
+
+        -- enough time has passed to shoot, subject is right => shootright
+          | st == 0 && selfThing^.thingTile.tilePosX < subject^.thingTile.tilePosX
+           = ("shootright",5)
+
+          -- subject left => walk left
+          | subject^.thingTile.tilePosX < selfThing^.thingTile.tilePosX
+           = ("walkleft",max 0 $ st-1)
+
+          -- we're left => walk right
+          | selfThing^.thingTile.tilePosX < subject^.thingTile.tilePosX
+           = ("walkright",max 0 $ st-1)
+
+          | otherwise
+           = ("",max 0 $ st-1)
 
 
 -- Main game loop
@@ -309,7 +341,7 @@ runCommand c g = case c of
 
 
   Jump
-    -> over gameStage (pushForceSubject (Force $ V2 0 (-100))) g
+    -> over gameStage (pushForceSubject (Force $ V2 0 (-10))) g
 
   TrackSubject
     -> let cam  = g^.gameCamera

@@ -1,11 +1,11 @@
 {-# LANGUAGE
     ExistentialQuantification
+  , OverloadedStrings
   , TemplateHaskell
   , StandaloneDeriving
-  #-} 
+  #-}
 module GameEngine.Stage
   (Stage()
-  ,Subject(..)
   ,setStage
   ,moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp
   ,moveSubjectRightBy,moveSubjectLeftBy,moveSubjectDownBy,moveSubjectUpBy
@@ -23,22 +23,36 @@ module GameEngine.Stage
 
   ,applyForceSubject
   ,pushForceSubject
+
+  -- Shouldnt be here, but for now, "Live" is a mess and probablt over abstracted so we're making
+  -- choices about the types here.
+  ,stageClient
+  ,Subject
+  ,StageReproducing
+  ,StageLive
+  ,StageClient
+  ,StageAgent
   )
   where
 
 import Control.Arrow
 import Control.Lens
 import Data.Map.Lens
+import Data.Maybe
 import Data.Text (Text)
 import Foreign.C.Types
 import Linear hiding (trace)
+import Linear.Affine
 import SDL
 import qualified Data.Map as M
 
-import GameEngine.Agent
 import GameEngine.Background
 import GameEngine.Collect
+import GameEngine.Counter
 import GameEngine.Force
+import GameEngine.HitBox
+import GameEngine.Live
+import GameEngine.Position
 import GameEngine.Thing
 import GameEngine.Tile
 import GameEngine.TileGrid
@@ -47,15 +61,19 @@ import GameEngine.Velocity
 import Debug.Trace
 
 type Subject = Thing
+type StageReproducing   = Reproducing Thing Subject ()
+type StageLive        o = Live Thing Subject o
+type StageClient        = Client Thing Thing Text ([StageReproducing],())
+type StageAgent         = Agent (Subject,Thing) Text
 
 data Stage = Stage
   {_stageBackground      :: Background
   ,_stageSubject         :: Subject
-  ,_stageThings          :: Collect (Thing,SomeAgent)
+  ,_stageThings          :: Collect StageReproducing
   ,_stageGravity         :: Force
 
-  ,_stageSpeedLimit      :: Velocity 
-  ,_stageThingSpeedLimit :: Velocity 
+  ,_stageSpeedLimit      :: Velocity
+  ,_stageThingSpeedLimit :: Velocity
 
   ,_stageSubjectFriction :: CFloat
   ,_stageThingFriction   :: CFloat
@@ -68,7 +86,7 @@ tickStage dTicks
   = applyVelocityThings dTicks
   . applySpeedLimitThings
   . applyFrictionThings
-  . applyThingsAgents
+  . updateThings
   . applyGravityThings
 
   . applyVelocitySubject dTicks
@@ -80,7 +98,7 @@ tickStage dTicks
 -- TODO: Fail when subject collides with background in starting position.
 setStage :: Background
          -> Subject
-         -> Collect (Thing,SomeAgent)
+         -> Collect StageReproducing
          -> Force
          -> Velocity
          -> Velocity
@@ -125,8 +143,9 @@ setSubjectTile tile stg =
   let tileGrid = stg^.stageBackground.backgroundTileGrid
       subject  = stg^.stageSubject
       subject' = set thingTile tile subject
+      things   = map ((`withLiveClient` _client) . view reproducing . fst) . collected $ stg^.stageThings
      in if collidesTileGrid (effectiveThingHitBox subject') tileGrid
-        || collidesThings subject' (map (fst . fst) . collected $ stg^.stageThings)
+        || collidesThings subject' things 
           then Nothing
           else Just $ set stageSubject subject' stg
 
@@ -139,7 +158,7 @@ collidesStageBackgroundTileGrid :: Stage -> Thing -> Bool
 collidesStageBackgroundTileGrid stg thing = collidesTileGrid (effectiveThingHitBox thing) (stg^.stageBackground.backgroundTileGrid)
 
 collidesStageThings :: Stage -> Thing -> Bool
-collidesStageThings stg thing = collidesThings thing (map (fst . fst) $ collected $ stg^.stageThings)
+collidesStageThings stg thing = collidesThings thing (map ((`withLiveClient` _client) . view reproducing . fst) . collected $ stg^.stageThings) 
 
 -- Apply velocity to the subject by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
@@ -154,7 +173,7 @@ applyVelocitySubject ticks stg =
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
 -- Only checks collision with the background, not the subject or other things.
 applyVelocityThings :: CInt -> Stage -> Stage
-applyVelocityThings ticks stg = over (stageThings . traverse) (first applyVelocityThing) stg
+applyVelocityThings ticks stg = over (stageThings . traverse) (over reproducing (mapLiveClient (over client applyVelocityThing))) stg
   where
     applyVelocityThing :: Thing -> Thing
     applyVelocityThing thing = tryMoveThingBy ((* V2 (fromIntegral ticks / 10) (fromIntegral ticks / 10)) $ thing^.thingVelocity.vel)
@@ -167,7 +186,7 @@ applyGravitySubject stg = applyForceSubject (stg^.stageGravity) stg
 
 -- apply gravity to all of the Things
 applyGravityThings :: Stage -> Stage
-applyGravityThings stg = over (stageThings . traverse) (first $ applyForceThing (stg^.stageGravity)) stg
+applyGravityThings stg = over (stageThings . traverse) (over reproducing (mapLiveClient (over client (applyForceThing (stg^.stageGravity))))) stg
 
 -- Apply a force to a subject to change its velocity
 applyForceSubject :: Force -> Stage -> Stage
@@ -192,7 +211,15 @@ applySpeedLimitSubject stg = stageSubject.thingVelocity%~limitVelocity (stg^.sta
 
 -- Reduce all things velocity if it has exceeded the limit
 applySpeedLimitThings :: Stage -> Stage
-applySpeedLimitThings stg = stageThings.traverse._1.thingVelocity%~limitVelocity (stg^.stageThingSpeedLimit) $ stg
+applySpeedLimitThings stg = stageThings   -- Collect StageReproducing
+                          . traverse      -- StageReproducing
+                          . reproducing   -- Live Thing Subject ([Reproducing Thing Subject ()],())
+                          %~ (mapLiveClient applySpeedLimitClient)
+                           $ stg
+  where applySpeedLimitClient :: Client Thing ob ac ([StageReproducing],()) -> Client Thing ob ac ([StageReproducing],())
+        applySpeedLimitClient = client        -- Thing
+                              . thingVelocity -- Velocity
+                              %~ (limitVelocity (stg^.stageThingSpeedLimit))
 
 -- Apply friction to the subject
 applyFrictionSubject :: Stage -> Stage
@@ -207,8 +234,14 @@ applyFrictionSubject stg
 
 -- Apply friction to all things
 applyFrictionThings :: Stage -> Stage
-applyFrictionThings stg = stageThings.traverse._1%~applyFrictionThing (stg^.stageThingFriction) $ stg
+applyFrictionThings stg = stageThings -- Collect (Reproducing Thing Pos ())
+                        . traverse    -- Reproducing Thing Pos ()
+                        . reproducing -- Live Thing Pos ([Reproducing Thing Pos ()],())
+                        %~ (mapLiveClient applyFrictionClient)
+                         $ stg
   where
+    applyFrictionClient = client%~applyFrictionThing (stg^.stageThingFriction)
+
     applyFrictionThing :: CFloat -> Thing -> Thing
     applyFrictionThing l t
       -- Standing on a tile
@@ -219,52 +252,57 @@ applyFrictionThings stg = stageThings.traverse._1%~applyFrictionThing (stg^.stag
       | otherwise
        = applyForceThing (t^.thingVelocity.to (opposeX 1)) t
 
-
 -- Update each thing by its corresponding agent
-applyThingsAgents :: Stage -> Stage
-applyThingsAgents stg =
-  let (newThings,updatedThings) = mapWriteCollect (\_ _ (thing,SomeAgent agent)
-                                                    -> let ((thing1,agent1),newThings) = applyThingAgent (thing,agent) (ob thing)
-                                                        in (newThings,(thing1,SomeAgent agent1))
-                                                  ) (stg^.stageThings)
-     in set stageThings (fst $ insertAnonymouses newThings updatedThings) stg
+updateThings :: Stage -> Stage
+updateThings stg
+  = let thingInput = stg^.stageSubject
+        (newThings,updatedThings) = mapWriteCollect (\k mName repThing0
+                                                      -> let (repThing1,(newThings,_)) = updateReproducing thingInput repThing0
+                                                            in (newThings,repThing1)
+                                                    ) (stg^.stageThings)
+       in set stageThings (fst $ insertAnonymouses newThings updatedThings) stg
+
+
+
+
+stageClient :: Thing -> StageClient
+stageClient t0 = mkClient t0 id applyActionThing
   where
-    ob thing = Observe {_observeAgentPosition  = thing^.thingTile.tilePos
-                       ,_observePlayerPosition = stg^.stageSubject.thingTile.tilePos
-                       ,_observeAgentHealth    = 3
-                       ,_observePlayerHealth   = 3
-                       }
+    applyActionThing :: Text -> Thing -> (Thing,([StageReproducing],()))
+    applyActionThing ac thing = case ac of
+      "walkleft"
+        -> (applyForceThing (Force $ V2 (-2) 0) thing,([],()))
 
--- Ask a things agent what to do with a thing under the stage.
--- Return a list of things and agents as the result of doing it.
-applyThingAgent :: (Thing,Agent s) -> Observe -> ((Thing,Agent s),[(Thing,SomeAgent)])
-applyThingAgent (thing,agent) ob = foldr (\action ((thing0,agent0),newThings0)
-                                           -> let ((thing1,agent1),newThings1) = applyActionThing ob action (thing0,agent0)
-                                                 in ((thing1,agent1),newThings0++newThings1)
-                                         )
-                                         ((thing,agent),[])
-                                         (observe ob agent)
+      "walkright"
+        -> (applyForceThing (Force $ V2 2 0) thing,([],()))
 
--- Apply a single action to a thing, returning an updated thing and agent, alongside a list of things and agents to spawn
-applyActionThing :: Observe -> Action -> (Thing,Agent s) -> ((Thing,Agent s),[(Thing,SomeAgent)])
-applyActionThing ob action (thing,agent) = case action of
-  WalkLeft
-    -> ((applyForceThing (Force $ V2 (-2) 0) thing,agent),[])
+      "jump"
+        -> (applyForceThing (Force $ V2 0 (-5)) thing,([],()))
 
-  WalkRight
-    -> ((applyForceThing (Force $ V2 2 0) thing,agent),[])
+      "shootleft"
+        -> (thing,([bulletReproducing (-1) thing],()))
 
-  Jump
-    -> ((applyForceThing (Force $ V2 0 (-5)) thing,agent),[])
+      "shootright"
+        -> (thing,([bulletReproducing 1 thing],()))
 
-  Spawn f
-    -> ((thing,agent),[f ob])
+      _
+        -> (thing,([],()))
 
-  And a1 a2
-    -> let ((thing1,agent1),newThings1) = applyActionThing ob a1 (thing,agent)
-           ((thing2,agent2),newThings2) = applyActionThing ob a2 (thing1,agent1)
-          in ((thing2,agent2),newThings1 ++ newThings2)
+    bulletReproducing :: CFloat -> Thing -> StageReproducing
+    bulletReproducing x thing = mkReproducing (bulletLive x thing)
 
-  Or a1 a2
-    -> applyActionThing ob a1 (thing,agent)
+    bulletLive :: CFloat -> Thing -> Live Thing Subject ([StageReproducing],())
+    bulletLive x thing = mkLive (bulletClient x thing) bulletAgent
+
+    bulletClient :: CFloat -> Thing -> Client Thing Thing Text ([StageReproducing],())
+    bulletClient x thing = mkClient (bulletThing x thing) id (\ac t -> (t,([],())))
+
+    bulletAgent :: Agent (Subject,Thing) Text
+    bulletAgent = mkAgent () (\ob () -> ("",()))
+
+    bulletThing :: CFloat -> Thing -> Thing
+    bulletThing x thing = Thing (bulletTile thing) True False (Velocity $ V2 x 0) (fromJust $ mkCounter 1 0 1) NoHitBox
+
+    bulletTile :: Thing -> Tile
+    bulletTile thing = mkTile (TileTypeColored (V4 1 1 1 1) True) (Rectangle (let Pos p = thing^.thingTile.tilePos in P p) (V2 10 10))
 

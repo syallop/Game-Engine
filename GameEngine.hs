@@ -3,7 +3,6 @@ module GameEngine
   )
   where
 
-import qualified GameEngine.Agent                 as G
 import qualified GameEngine.Background            as G
 import qualified GameEngine.Camera                as G
 import qualified GameEngine.Collect               as G

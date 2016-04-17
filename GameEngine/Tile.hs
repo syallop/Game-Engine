@@ -50,6 +50,7 @@ import GameEngine.HitBox
 import GameEngine.Position
 import GameEngine.Size
 
+import Control.Applicative
 import Control.Lens
 import Foreign.C.Types
 import GHC.Word

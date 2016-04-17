@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    GeneralizedNewtypeDeriving
+    DeriveDataTypeable
+  , GeneralizedNewtypeDeriving
   , TemplateHaskell
   #-}
 module GameEngine.Position
@@ -10,11 +11,12 @@ module GameEngine.Position
   where
 
 import Control.Lens
+import Data.Typeable
 import Foreign.C.Types
 import Linear
 
 newtype Pos = Pos {_pos :: V2 CFloat}
-  deriving (Show,Eq,Num,Fractional)
+  deriving (Show,Eq,Num,Fractional,Typeable)
 makeLenses ''Pos
 
 -- Position rounded down to a whole number

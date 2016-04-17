@@ -1,4 +1,7 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE
+    DeriveDataTypeable
+  , TemplateHaskell
+  #-}
 module GameEngine.Thing
   (Thing(..)
   ,thingTile
@@ -37,6 +40,7 @@ import Control.Lens
 import Data.Function
 import Data.Map
 import Data.Text hiding (any)
+import Data.Typeable
 import Foreign.C.Types
 import Linear
 
@@ -49,7 +53,7 @@ data Thing = Thing
   ,_thingHealth   :: Counter
   ,_thingHitBox   :: HitBox
   }
-  deriving (Eq,Show)
+  deriving (Eq,Show,Typeable)
 
 makeLenses ''Thing
 

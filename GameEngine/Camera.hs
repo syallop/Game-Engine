@@ -37,6 +37,7 @@ import SDL
 
 import GameEngine.Background
 import GameEngine.Collect
+import GameEngine.Live
 import GameEngine.Position
 import GameEngine.Size
 import GameEngine.Stage
@@ -220,7 +221,15 @@ shoot c renderer stage = do
   renderTile renderer $ over tilePos (`worldToCamera` c') subjectTile
 
   -- render the 'Thing's
-  mapM_ (\thing -> renderTile renderer $ over tilePos (`worldToCamera` c') $ thing^.thingTile) (map (fst . fst) . collected $ stage^.stageThings)
+  -- TODO: MESS
+  let reps :: [Reproducing Thing Subject ()]
+      reps = map fst $ stage^.stageThings.to collected
+
+      lives :: [Live Thing Subject ([Reproducing Thing Subject ()],())]
+      lives = toListOf (traverse.reproducing) $ reps
+
+      things = map (`withLiveClient` _client) lives
+  mapM_ (\thing -> renderTile renderer $ over tilePos (`worldToCamera` c') $ thing^.thingTile) things
 
   present renderer
 

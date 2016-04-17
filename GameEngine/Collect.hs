@@ -12,6 +12,7 @@ module GameEngine.Collect
   ,Key()
   ,emptyCollect
   ,mkCollect
+  ,collect
 
   ,memberName
   ,memberKey
@@ -36,12 +37,14 @@ module GameEngine.Collect
 import qualified Data.Map    as M
 import qualified Data.IntMap as IM
 import Control.Arrow
-import Data.Text (Text)
 import Control.Lens
-import Data.Monoid
 import Data.Coerce
 import Data.Foldable (Foldable)
+import Data.List
+import Data.Maybe
+import Data.Monoid
 import Data.String
+import Data.Text (Text)
 
 newtype Key  = Key  {_key  :: IM.Key} deriving (Show,Eq)
 newtype Name = Name {_name :: Text} deriving (Show,Eq,Ord,IsString)
@@ -66,6 +69,11 @@ mkCollect named anonymous =
       allThingsMap    = [1..] `zip` allThings
       nameKeys        = map snd named `zip` map Key [1..]
      in Collect (IM.fromList allThingsMap) (M.fromList nameKeys) (Key lastKey)
+
+collect :: [(t,Maybe Name)] -> Collect t
+collect ns =
+  let (named,anonymous) = partition (isJust . snd) ns
+     in mkCollect (map (\(t,Just n) -> (t,n)) named) (map fst anonymous)
 
 memberKey :: Key -> Collect t -> Bool
 memberKey k = IM.member (_key k) . _collectThings
