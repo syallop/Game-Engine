@@ -3,25 +3,25 @@ module GameEngine
   )
   where
 
-import qualified GameEngine.Background            as G
-import qualified GameEngine.Camera                as G
-import qualified GameEngine.Collect               as G
-import qualified GameEngine.ConfigReader          as G
-import qualified GameEngine.Counter               as G
-import qualified GameEngine.Force                 as G
-import qualified GameEngine.HitBox                as G
-import qualified GameEngine.Live                  as G
-import qualified GameEngine.Position              as G
-import qualified GameEngine.Size                  as G
-import qualified GameEngine.Stage                 as G
-import qualified GameEngine.Stage.ConfigReader    as G
-import qualified GameEngine.Thing                 as G
-import qualified GameEngine.Thing.ConfigReader    as G
-import qualified GameEngine.Tile                  as G
-import qualified GameEngine.Tile.ConfigReader     as G
-import qualified GameEngine.TileGrid              as G
-import qualified GameEngine.TileGrid.ConfigReader as G
-import qualified GameEngine.TileSet               as G
-import qualified GameEngine.TileSet.ConfigReader  as G
-import qualified GameEngine.Velocity              as G
+import GameEngine.AI                    as G
+import GameEngine.Background            as G
+import GameEngine.Camera                as G
+import GameEngine.Collect               as G
+import GameEngine.ConfigReader          as G
+import GameEngine.Counter               as G
+import GameEngine.Force                 as G
+import GameEngine.HitBox                as G
+import GameEngine.Position              as G
+import GameEngine.Size                  as G
+import GameEngine.Stage                 as G
+import GameEngine.Stage.ConfigReader    as G
+import GameEngine.Thing                 as G
+import GameEngine.Thing.ConfigReader    as G
+import GameEngine.Tile                  as G
+import GameEngine.Tile.ConfigReader     as G
+import GameEngine.TileGrid              as G
+import GameEngine.TileGrid.ConfigReader as G
+import GameEngine.TileSet               as G
+import GameEngine.TileSet.ConfigReader  as G
+import GameEngine.Velocity              as G
 

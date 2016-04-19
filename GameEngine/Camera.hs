@@ -35,9 +35,9 @@ import Linear hiding (trace)
 import Linear.Affine
 import SDL
 
+import GameEngine.AI
 import GameEngine.Background
 import GameEngine.Collect
-import GameEngine.Live
 import GameEngine.Position
 import GameEngine.Size
 import GameEngine.Stage

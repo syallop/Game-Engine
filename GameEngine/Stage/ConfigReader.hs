@@ -18,12 +18,12 @@ import GameEngine.Tile.ConfigReader
 import GameEngine.TileGrid.ConfigReader
 import GameEngine.TileSet.ConfigReader
 
+import GameEngine.AI
 import GameEngine.Background
 import GameEngine.Collect
 import GameEngine.Counter
 import GameEngine.Force
 import GameEngine.HitBox
-import GameEngine.Live
 import GameEngine.Position
 import GameEngine.Stage
 import GameEngine.Thing

@@ -20,28 +20,11 @@ import Linear.Affine (Point(..),lensP)
 import SDL
 import qualified Data.Map as M
 
-import GameEngine.Background
-import GameEngine.Camera
-import GameEngine.Collect
-import GameEngine.Counter
-import GameEngine.Force
-import GameEngine.HitBox
-import GameEngine.Live
-import GameEngine.Position
-import GameEngine.Size
-import GameEngine.Stage
-import GameEngine.Stage.ConfigReader
-import GameEngine.Thing
-import GameEngine.Thing.ConfigReader
-import GameEngine.Tile
-import GameEngine.Tile.ConfigReader
-import GameEngine.TileGrid
-import GameEngine.TileSet
-import GameEngine.Velocity
+import GameEngine
 
 import Debug.Trace
 
--- Game state and configuration options 
+-- Game state and configuration options
 data Game = Game
   {_gameQuit      :: Bool
 
@@ -52,8 +35,8 @@ data Game = Game
   ,_gameCamera    :: Camera
   ,_gamePanSpeed  :: CFloat
 
-  ,_gameLastTicks :: Word32 -- Number of ticks since initialisation. 
-  ,_gameTickDelta :: CInt   -- Number of ticks since last check. 
+  ,_gameLastTicks :: Word32 -- Number of ticks since initialisation.
+  ,_gameTickDelta :: CInt   -- Number of ticks since last check.
   }
   deriving Show
 makeLenses ''Game

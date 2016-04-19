@@ -46,12 +46,12 @@ import Linear.Affine
 import SDL
 import qualified Data.Map as M
 
+import GameEngine.AI
 import GameEngine.Background
 import GameEngine.Collect
 import GameEngine.Counter
 import GameEngine.Force
 import GameEngine.HitBox
-import GameEngine.Live
 import GameEngine.Position
 import GameEngine.Thing
 import GameEngine.Tile
