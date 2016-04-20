@@ -129,6 +129,10 @@ thingInstanceConfigFmt = ConfigFmt
                   (OptionFmt "emptyAgent" [])
                   ,DefaultFmt False       []
                   )
+
+  ,(OptionPairFmt (OptionFmt "contactDamage"        [SomeArgFmt ArgFmtInt])
+                  (OptionFmt "defaultContactDamage" [])
+                  ,DefaultFmt False                 [])
   ]
 
 
@@ -195,12 +199,6 @@ parseStage agents stageDir stagesPath renderer = do
               -- No "player" tile
               Nothing
                 -> return Nothing
-
-              {-Just ((player, _),_)-}
-                {--> do mBackground <- parseBackground (stagesPath ++ "/" ++ stageDir) tileset aliases unitSize renderer-}
-                      {-case mBackground of-}
-                        {-Nothing         -> return Nothing-}
-                        {-Just background -> return $ setStage background player otherThings gravity subjectSpeedLimit thingSpeedLimit subjectFriction thingFriction-}
 
               Just (repPlayer,_)
                 -> do let player = repPlayer^.reproducing. to (`withLiveClient` _client)
@@ -283,6 +281,8 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
 
                       maxHealth      = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 3 thingInstanceConfig
 
+                      contactDamage  = fromArgs "contactDamage" (\[SomeArg (ArgInt d)] -> fromIntegral d) 0 thingInstanceConfig
+
                       emptyAgent :: StageAgent
                       emptyAgent = mkAgent () (\(sub,thing) () -> ("",()))
                       agent      = fromArgs "agent"     (\[SomeArg (ArgText a)] -> maybe emptyAgent fst $ lookupName (Name a) agents) emptyAgent thingInstanceConfig
@@ -303,6 +303,7 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                                            . set (thingTile.tileHeight) thingHeight
                                            . set thingHitBox hitBox
                                            . set thingHealth (fromJust $ mkCounter maxHealth 0 maxHealth)
+                                           . set thingContactDamage contactDamage
                                            . moveThingBy positionOffset
                                            $ baseThing
 

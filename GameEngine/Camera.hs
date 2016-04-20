@@ -223,7 +223,7 @@ shoot c renderer stage = do
   -- render the 'Thing's
   -- TODO: MESS
   let reps :: [Reproducing Thing Subject ()]
-      reps = map fst $ stage^.stageThings.to collected
+      reps = map fst $ stage^.stageCollectReproducing.to collected
 
       lives :: [Live Thing Subject ([Reproducing Thing Subject ()],())]
       lives = toListOf (traverse.reproducing) $ reps

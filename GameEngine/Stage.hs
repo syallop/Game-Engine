@@ -14,6 +14,7 @@ module GameEngine.Stage
 
   ,stageBackground
   ,stageSubject
+  ,stageCollectReproducing
   ,stageThings
   ,stageGravity
   ,stageSpeedLimit
@@ -67,20 +68,21 @@ type StageClient        = Client Thing Thing Text ([StageReproducing],())
 type StageAgent         = Agent (Subject,Thing) Text
 
 data Stage = Stage
-  {_stageBackground      :: Background
-  ,_stageSubject         :: Subject
-  ,_stageThings          :: Collect StageReproducing
-  ,_stageGravity         :: Force
+  {_stageBackground         :: Background
+  ,_stageSubject            :: Subject
+  ,_stageCollectReproducing :: Collect StageReproducing
+  ,_stageGravity            :: Force
 
-  ,_stageSpeedLimit      :: Velocity
-  ,_stageThingSpeedLimit :: Velocity
+  ,_stageSpeedLimit         :: Velocity
+  ,_stageThingSpeedLimit    :: Velocity
 
-  ,_stageSubjectFriction :: CFloat
-  ,_stageThingFriction   :: CFloat
+  ,_stageSubjectFriction    :: CFloat
+  ,_stageThingFriction      :: CFloat
   } deriving (Show,Eq)
 makeLenses ''Stage
 
 
+-- Update the stage by a single time step, given the number of ticks since the last update
 tickStage :: CInt -> Stage -> Stage
 tickStage dTicks
   = applyVelocityThings dTicks
@@ -143,37 +145,63 @@ setSubjectTile tile stg =
   let tileGrid = stg^.stageBackground.backgroundTileGrid
       subject  = stg^.stageSubject
       subject' = set thingTile tile subject
-      things   = map ((`withLiveClient` _client) . view reproducing . fst) . collected $ stg^.stageThings
+      things   = stageThings stg
      in if collidesTileGrid (effectiveThingHitBox subject') tileGrid
         || collidesThings subject' things 
           then Nothing
           else Just $ set stageSubject subject' stg
 
--- Does a tile collide with anything on the stage (EXCEPT the subject)?
+
+-- Does a thing collide with anything on the stage (EXCEPT the subject)?
 collidesAnything :: Stage -> Thing -> Bool
 collidesAnything stg thing = collidesStageBackgroundTileGrid stg thing
                           || collidesStageThings             stg thing
 
+-- Does a thing collide with the background tilegrid?
 collidesStageBackgroundTileGrid :: Stage -> Thing -> Bool
 collidesStageBackgroundTileGrid stg thing = collidesTileGrid (effectiveThingHitBox thing) (stg^.stageBackground.backgroundTileGrid)
 
+-- Does a thing collide with any of the things on the stage?
 collidesStageThings :: Stage -> Thing -> Bool
-collidesStageThings stg thing = collidesThings thing (map ((`withLiveClient` _client) . view reproducing . fst) . collected $ stg^.stageThings) 
+collidesStageThings stg thing = collidesThings thing (stageThings stg)
+
+-- Extract a list of all the things on the stage, throwing away their names, controlling agents and anything else
+stageThings :: Stage -> [Thing]
+stageThings stg = map ((`withLiveClient` _client) . view reproducing . fst) . collected $ stg^.stageCollectReproducing
+
+-- Which things does a thing collide with?
+collisions :: Thing -> Stage -> [Thing]
+collisions thing = filterCollidesThings thing . stageThings
 
 -- Apply velocity to the subject by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
 -- Checks collision with the background and other things.
+-- Applys collision damage of all things touched in a moment.
 applyVelocitySubject :: CInt -> Stage -> Stage
 applyVelocitySubject ticks stg =
-  over stageSubject (\subject -> tryMoveThingBy ((* V2 (fromIntegral ticks / 10) (fromIntegral ticks / 10)) $ stg^.stageSubject.thingVelocity.vel)
-                                                (stg^.stageSubject)
-                                                (not . collidesAnything stg)) stg
+  let subject                   = stg^.stageSubject
+      baseDisplacement          = subject^.thingVelocity.vel
+      displacementModifier      = V2 (fromIntegral ticks / 10) (fromIntegral ticks / 10)
+      displacement              = baseDisplacement * displacementModifier
+      (movedSubject,collisions) = tryMoveThingByAcc displacement [] subject validateSubjectMovement
+      collisionDamage           = sum . map (_thingContactDamage) $ collisions
+      damagedSubject            = over thingHealth (subCounter collisionDamage) movedSubject
+     in set stageSubject damagedSubject stg
+  where
+    -- Given an accumulated list of things already collided with, test whether a thing comes to a stop and accumulate
+    -- anything else collided with.
+    validateSubjectMovement :: [Thing] -> Thing -> (Bool,[Thing])
+    validateSubjectMovement accCollisions testThing =
+      let collidesTileGrid = collidesStageBackgroundTileGrid stg testThing
+          thingCollisions  = collisions testThing stg
+          collides         = collidesTileGrid || (not . null $ thingCollisions)
+         in (not collides,thingCollisions++accCollisions)
 
 -- Apply velocity to the things by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
 -- Only checks collision with the background, not the subject or other things.
 applyVelocityThings :: CInt -> Stage -> Stage
-applyVelocityThings ticks stg = over (stageThings . traverse) (over reproducing (mapLiveClient (over client applyVelocityThing))) stg
+applyVelocityThings ticks stg = over (stageCollectReproducing . traverse) (over reproducing (mapLiveClient (over client applyVelocityThing))) stg
   where
     applyVelocityThing :: Thing -> Thing
     applyVelocityThing thing = tryMoveThingBy ((* V2 (fromIntegral ticks / 10) (fromIntegral ticks / 10)) $ thing^.thingVelocity.vel)
@@ -186,7 +214,7 @@ applyGravitySubject stg = applyForceSubject (stg^.stageGravity) stg
 
 -- apply gravity to all of the Things
 applyGravityThings :: Stage -> Stage
-applyGravityThings stg = over (stageThings . traverse) (over reproducing (mapLiveClient (over client (applyForceThing (stg^.stageGravity))))) stg
+applyGravityThings stg = over (stageCollectReproducing . traverse) (over reproducing (mapLiveClient (over client (applyForceThing (stg^.stageGravity))))) stg
 
 -- Apply a force to a subject to change its velocity
 applyForceSubject :: Force -> Stage -> Stage
@@ -211,9 +239,9 @@ applySpeedLimitSubject stg = stageSubject.thingVelocity%~limitVelocity (stg^.sta
 
 -- Reduce all things velocity if it has exceeded the limit
 applySpeedLimitThings :: Stage -> Stage
-applySpeedLimitThings stg = stageThings   -- Collect StageReproducing
-                          . traverse      -- StageReproducing
-                          . reproducing   -- Live Thing Subject ([Reproducing Thing Subject ()],())
+applySpeedLimitThings stg = stageCollectReproducing -- Collect StageReproducing
+                          . traverse                -- StageReproducing
+                          . reproducing             -- Live Thing Subject ([Reproducing Thing Subject ()],())
                           %~ (mapLiveClient applySpeedLimitClient)
                            $ stg
   where applySpeedLimitClient :: Client Thing ob ac ([StageReproducing],()) -> Client Thing ob ac ([StageReproducing],())
@@ -234,9 +262,9 @@ applyFrictionSubject stg
 
 -- Apply friction to all things
 applyFrictionThings :: Stage -> Stage
-applyFrictionThings stg = stageThings -- Collect (Reproducing Thing Pos ())
-                        . traverse    -- Reproducing Thing Pos ()
-                        . reproducing -- Live Thing Pos ([Reproducing Thing Pos ()],())
+applyFrictionThings stg = stageCollectReproducing -- Collect (Reproducing Thing Pos ())
+                        . traverse                -- Reproducing Thing Pos ()
+                        . reproducing             -- Live Thing Pos ([Reproducing Thing Pos ()],())
                         %~ (mapLiveClient applyFrictionClient)
                          $ stg
   where
@@ -259,12 +287,12 @@ updateThings stg
         (newThings,updatedThings) = mapWriteCollect (\k mName repThing0
                                                       -> let (repThing1,(newThings,_)) = updateReproducing thingInput repThing0
                                                             in (newThings,repThing1)
-                                                    ) (stg^.stageThings)
-       in set stageThings (fst $ insertAnonymouses newThings updatedThings) stg
+                                                    ) (stg^.stageCollectReproducing)
+       in set stageCollectReproducing (fst $ insertAnonymouses newThings updatedThings) stg
 
 
 
-
+-- An example client. Handles Text actions, namely walkleft,walkright,jump,shootleft and shootright
 stageClient :: Thing -> StageClient
 stageClient t0 = mkClient t0 id applyActionThing
   where
@@ -301,7 +329,7 @@ stageClient t0 = mkClient t0 id applyActionThing
     bulletAgent = mkAgent () (\ob () -> ("",()))
 
     bulletThing :: CFloat -> Thing -> Thing
-    bulletThing x thing = Thing (bulletTile thing) True False (Velocity $ V2 x 0) (fromJust $ mkCounter 1 0 1) NoHitBox
+    bulletThing x thing = Thing (bulletTile thing) True False (Velocity $ V2 x 0) (fromJust $ mkCounter 1 0 1) NoHitBox 1
 
     bulletTile :: Thing -> Tile
     bulletTile thing = mkTile (TileTypeColored (V4 1 1 1 1) True) (Rectangle (let Pos p = thing^.thingTile.tilePos in P p) (V2 10 10))

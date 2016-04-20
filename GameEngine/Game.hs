@@ -179,12 +179,15 @@ renderGame (window,renderer) game = if game^.gameQuit then return (True,game) el
   rendererDrawColor renderer $= white
 
   -- Update the stage
-  let game' = set gameStage (tickStage (game^.gameTickDelta) (game^.gameStage)) game
+  -- Quit when the player reaches 0 health
+  let newStage   = tickStage (game^.gameTickDelta) (game^.gameStage)
+      shouldQuit = newStage^.stageSubject.thingHealth.to atMin
+      game'      = set gameStage newStage game
 
   -- Shoot a frame of the game
   shoot (game'^.gameCamera) renderer (game'^.gameStage)
 
-  return (False,game')
+  return (shouldQuit,game')
 
 
 

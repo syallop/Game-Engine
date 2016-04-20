@@ -5,11 +5,15 @@ module GameEngine.Counter
 
   ,resetCounter
   ,addCounter
+  ,subCounter
 
   ,counterCount
   ,counterInitialCount
   ,counterMinCount
   ,counterMaxCount
+
+  ,atMin
+  ,atMax
   )
   where
 
@@ -43,4 +47,15 @@ addCounter x c
   | c^.counterCount + x < c^.counterMinCount  = set counterCount (c^.counterMinCount) c
   | c^.counterMaxCount  < c^.counterCount + x = set counterCount (c^.counterMaxCount) c
   | otherwise                                 = over counterCount (+x) c
+
+subCounter :: CInt -> Counter -> Counter
+subCounter x = addCounter (-1 * x)
+
+-- Is the counter at its minimum value?
+atMin :: Counter -> Bool
+atMin c = c^.counterCount == c^.counterMinCount
+
+-- Is the counter at its maximum value?
+atMax :: Counter -> Bool
+atMax c = c^.counterCount == c^.counterMaxCount
 

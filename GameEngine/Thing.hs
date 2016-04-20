@@ -1,5 +1,6 @@
 {-# LANGUAGE
     DeriveDataTypeable
+  , ScopedTypeVariables
   , TemplateHaskell
   #-}
 module GameEngine.Thing
@@ -10,6 +11,7 @@ module GameEngine.Thing
   ,thingVelocity
   ,thingHealth
   ,thingHitBox
+  ,thingContactDamage
 
   ,setMass
   ,setMassless
@@ -19,9 +21,13 @@ module GameEngine.Thing
   ,moveThingBy
 
   ,tryMoveThingBy
+  ,tryMoveThingByAcc
 
   ,collidesThing
   ,collidesThings
+  ,filterCollidesThings
+  ,contactDamage
+
   ,effectiveThingHitBox
 
   ,applyForceThing
@@ -38,23 +44,23 @@ import GameEngine.Velocity
 
 import Control.Lens
 import Data.Function
-import Data.Map
-import Data.Text hiding (any)
+import Data.Map hiding (filter,map)
+import Data.Text hiding (any,filter,map)
 import Data.Typeable
 import Foreign.C.Types
 import Linear
 
 -- A _thing_ with a drawable tile
 data Thing = Thing
-  {_thingTile     :: Tile
-  ,_thingIsSolid  :: Bool
-  ,_thingHasMass  :: Bool
-  ,_thingVelocity :: Velocity
-  ,_thingHealth   :: Counter
-  ,_thingHitBox   :: HitBox
+  {_thingTile          :: Tile
+  ,_thingIsSolid       :: Bool
+  ,_thingHasMass       :: Bool
+  ,_thingVelocity      :: Velocity
+  ,_thingHealth        :: Counter
+  ,_thingHitBox        :: HitBox
+  ,_thingContactDamage :: CInt
   }
   deriving (Eq,Show,Typeable)
-
 makeLenses ''Thing
 
 type Things = Map Text Thing
@@ -86,38 +92,51 @@ moveThingBy (V2 x y) thing = moveThingDownBy y . moveThingRightBy x $ thing
 
 -- Try and move a thing in a direction. Left => validation function failed and velocity in that direction is nullified
 tryMoveThingRight,tryMoveThingLeft,tryMoveThingDown,tryMoveThingUp :: Thing -> (Thing -> Bool) -> Either Thing Thing
-tryMoveThingRight thing isValid =
-  let thing' = moveThingRight thing
+tryMoveThingRight = tryMoveThing moveThingRight (over thingVelocity nullX)
+tryMoveThingLeft  = tryMoveThing moveThingLeft  (over thingVelocity nullX)
+tryMoveThingDown  = tryMoveThing moveThingDown  (over thingVelocity nullY)
+tryMoveThingUp    = tryMoveThing moveThingUp    (over thingVelocity nullY)
+
+-- Try and move a thing with a movement function. Applying a failure function if it fails a validation function.
+-- Left => Validation function failed.
+tryMoveThing :: (Thing -> Thing) -> (Thing -> Thing) -> Thing -> (Thing -> Bool) -> Either Thing Thing
+tryMoveThing moveF failF thing isValid =
+  let thing' = moveF thing
      in if isValid thing'
           then Right thing'
-          else Left $ over thingVelocity nullX thing
-
-tryMoveThingLeft thing isValid =
-  let thing' = moveThingLeft thing
-     in if isValid thing'
-          then Right thing'
-          else Left $ over thingVelocity nullX thing
-
-tryMoveThingDown thing isValid =
-  let thing' = moveThingDown thing
-     in if isValid thing'
-          then Right thing'
-          else Left $ over thingVelocity nullY thing
-
-tryMoveThingUp thing isValid =
-  let thing' = moveThingUp thing
-     in if isValid thing'
-          then Right thing'
-          else Left $ over thingVelocity nullY thing
+          else Left $ failF thing
 
 
+-- Try and move a thing with a movement function. Applying a failure function if it fails an accumulating validation function.
+-- Left => Validation failed. Return the accumulator.
+tryMoveThingAcc :: (Thing -> Thing)
+                -> (Thing -> Thing)
+                -> (acc -> Thing -> (Bool,acc))
+                -> Thing
+                -> acc
+                -> (Either Thing Thing,acc)
+tryMoveThingAcc move fail validate thing acc =
+  let thing' = move thing
+     in case validate acc thing' of
+          (valid,acc')
+            | valid     -> (Right thing'       ,acc')
+            | otherwise -> (Left . fail $ thing,acc')
+
+tryMoveThingRightAcc,tryMoveThingLeftAcc,tryMoveThingDownAcc,tryMoveThingUpAcc :: acc -> (acc -> Thing -> (Bool,acc)) -> Thing -> (Either Thing Thing,acc)
+tryMoveThingRightAcc acc validate thing = tryMoveThingAcc moveThingRight (over thingVelocity nullX) validate thing acc
+tryMoveThingLeftAcc  acc validate thing = tryMoveThingAcc moveThingLeft  (over thingVelocity nullX) validate thing acc
+tryMoveThingDownAcc  acc validate thing = tryMoveThingAcc moveThingDown  (over thingVelocity nullY) validate thing acc
+tryMoveThingUpAcc    acc validate thing = tryMoveThingAcc moveThingUp    (over thingVelocity nullY) validate thing acc
+
+-- Try and move a thing by a vector amount, stopping as soon as a validation function returns False.
 tryMoveThingBy :: V2 CFloat -> Thing -> (Thing -> Bool) -> Thing
 tryMoveThingBy (V2 x y) thing isValid = interleaveStateful (abs x) (abs y) thing fx fy
   where
-    fx :: CFloat -> Thing -> Either (Thing,CFloat) Thing
+    fx,fy :: CFloat -> Thing -> Either (Thing,CFloat) Thing
     fx = if x > 0 then fRight else fLeft
     fy = if y > 0 then fDown  else fUp
 
+    fRight,fLeft,fDown,fUp :: CFloat -> Thing -> Either (Thing,CFloat) Thing
     fRight = step tryMoveThingRight
     fLeft  = step tryMoveThingLeft
     fDown  = step tryMoveThingDown
@@ -138,6 +157,48 @@ tryMoveThingBy (V2 x y) thing isValid = interleaveStateful (abs x) (abs y) thing
                            -> Left (thing',delta-1)
 
 
+
+-- Try and move a thing by a vector amount, stopping as soon as a validation function returns False and accumulating a parameter
+-- through each performed test.
+tryMoveThingByAcc :: forall acc
+                   . V2 CFloat
+                  -> acc
+                  -> Thing
+                  -> (acc -> Thing -> (Bool,acc))
+                  -> (Thing,acc)
+tryMoveThingByAcc (V2 x y) acc thing validate = interleaveStateful (abs x) (abs y) (thing,acc) fx fy
+  where
+    {-fx,fy :: CFloat -> Thing -> Either (Thing,CFloat) Thing-}
+    fx,fy :: CFloat -> (Thing,acc) -> Either ((Thing,acc), CFloat) (Thing,acc)
+    fx = if x > 0 then fRight else fLeft
+    fy = if y > 0 then fDown  else fUp
+
+    fRight,fLeft,fDown,fUp :: CFloat -> (Thing,acc) -> Either ((Thing,acc), CFloat) (Thing,acc)
+    fRight = step tryMoveThingRightAcc
+    fLeft  = step tryMoveThingLeftAcc
+    fDown  = step tryMoveThingDownAcc
+    fUp    = step tryMoveThingUpAcc
+
+    -- Apply a movement function to a thing, n times supporting early failure.
+    -- E.G. if we hit a wall with 5 steps to go, theres no need to try another 5 times.
+    step :: (acc -> (acc -> Thing -> (Bool,acc)) -> Thing -> (Either Thing Thing,acc))
+         -> CFloat
+         -> (Thing,acc)
+         -> Either ((Thing,acc),CFloat) (Thing,acc)
+    step moveF delta (thing,acc)
+      | delta <= 0 = Right (thing,acc)
+      | otherwise  = case moveF acc validate thing of
+
+                         -- Failed to move => Done recursing
+                         (Left thing',acc')
+                           -> Right (thing',acc')
+
+                         -- Moved. Recurse one less time
+                         (Right thing',acc')
+                           -> Left ((thing',acc'),delta-1)
+
+
+
 -- Do two things collide?
 collidesThing :: Thing -> Thing -> Bool
 collidesThing = on collidesHitBox effectiveThingHitBox
@@ -145,6 +206,19 @@ collidesThing = on collidesHitBox effectiveThingHitBox
 -- Does a thing collide with a list of things?
 collidesThings :: Thing -> [Thing] -> Bool
 collidesThings = any . collidesThing
+
+-- Filter Things which collide with a Thing
+filterCollidesThings :: Thing -> [Thing] -> [Thing]
+filterCollidesThings t = filter (collidesThing t)
+
+-- No contact  => Nothing
+-- Contact(/s) => Sum damage
+contactDamage :: Thing -> [Thing] -> Maybe CInt
+contactDamage t ts = case filterCollidesThings t ts of
+  [] -> Nothing
+  ts -> Just . sum . map (_thingContactDamage) $ ts
+
+
 
 {- Utils -}
 
