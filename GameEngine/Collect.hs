@@ -24,6 +24,7 @@ module GameEngine.Collect
   ,getKey
 
   {- Insertions -}
+  ,insert
   ,insertNamed
   ,insertAnonymous
   ,insertAnonymouses
@@ -50,7 +51,7 @@ import Control.Arrow
 import Control.Lens
 import Data.Coerce
 import Data.Foldable (Foldable)
-import Data.List
+import Data.List hiding (insert)
 import Data.Maybe
 import Data.Monoid
 import Data.String
@@ -107,6 +108,12 @@ getKey k c = fromJust $ lookupKey k c
 
 
 {- Inserting -}
+
+insert :: Maybe Name -> t -> Collect t -> (Collect t,Key)
+insert mName = case mName of
+  Nothing   -> insertAnonymous
+  Just name -> insertNamed name
+
 insertNamed :: Name -> t -> Collect t -> (Collect t,Key)
 insertNamed n t c =
   let nextKey = Key $ _key (c^.collectCurrentKey) + 1

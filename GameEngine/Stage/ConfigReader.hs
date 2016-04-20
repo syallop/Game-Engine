@@ -200,8 +200,9 @@ parseStage agents stageDir stagesPath renderer = do
             -- parse all the things, and extract one named "player" to use as the subject
             things     <- parseThingInstances baseThings agents (stagesPath ++ "/" ++ stageDir)
 
-            let mPlayer     = lookupName "player" things
-                otherThings = deleteName "player" things
+            let mPlayer = lookupName "player" things
+                them    = deleteName "player" things
+                us      = collect []
 
             case mPlayer of
               -- No "player" tile
@@ -213,7 +214,7 @@ parseStage agents stageDir stagesPath renderer = do
                       mBackground <- parseBackground (stagesPath ++ "/" ++ stageDir) tileset aliases unitSize renderer
                       case mBackground of
                         Nothing         -> return Nothing
-                        Just background -> return $ setStage background player otherThings gravity subjectSpeedLimit thingSpeedLimit subjectFriction thingFriction
+                        Just background -> return $ setStage background player us them gravity subjectSpeedLimit thingSpeedLimit subjectFriction thingFriction
   where
     conv :: Float -> CFloat
     conv = CFloat

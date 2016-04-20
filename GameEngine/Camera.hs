@@ -27,6 +27,8 @@ module GameEngine.Camera
   ,cameraBoundaryUp
   ,cameraBoundaryDown
   ,cameraTrackSubject
+
+  ,worldToCamera
   ) where
 
 import Control.Lens
@@ -48,9 +50,9 @@ import GameEngine.TileGrid
 import Debug.Trace
 
 data Camera = Camera
-  {_cameraPan            :: Pos 
+  {_cameraPan            :: Pos
 
-  ,_cameraDimensions     :: Size 
+  ,_cameraDimensions     :: Size
 
   -- Hard boundaries the camera will not move past
   ,_cameraBoundaries     :: V4 CFloat
@@ -87,10 +89,10 @@ cameraBoundaryDown = cameraBoundaries._w
 
 -- Convert a position relative to the world top-left to a position relative to the cameras
 -- top-left
-worldToCamera :: Pos -> Camera -> Pos 
+worldToCamera :: Pos -> Camera -> Pos
 worldToCamera (Pos (V2 x y)) c = Pos $ V2 (x - c^.cameraPanX) (y - c^.cameraPanY)
 
-cameraToWorld :: Pos -> Camera -> Pos 
+cameraToWorld :: Pos -> Camera -> Pos
 cameraToWorld (Pos (V2 x y)) c = Pos $ V2 (x + (c^.cameraPanX)) (y + (c^.cameraPanY))
 
 
@@ -220,16 +222,27 @@ shoot c renderer stage = do
   -- render the subject within the frame
   renderTile renderer $ over tilePos (`worldToCamera` c') subjectTile
 
-  -- render the 'Thing's
+  -- render the "Us" Things
   -- TODO: MESS
   let reps :: [Reproducing Thing Subject ()]
-      reps = map fst $ stage^.stageCollectReproducing.to collected
+      reps = map fst $ stage^.stageUs.to collected
 
       lives :: [Live Thing Subject ([Reproducing Thing Subject ()],())]
       lives = toListOf (traverse.reproducing) $ reps
 
       things = map (`withLiveClient` _client) lives
   mapM_ (\thing -> renderTile renderer $ over tilePos (`worldToCamera` c') $ thing^.thingTile) things
+
+  -- render the "Them" Things
+  let reps :: [Reproducing Thing Subject ()]
+      reps = map fst $ stage^.stageThem.to collected
+
+      lives :: [Live Thing Subject ([Reproducing Thing Subject ()],())]
+      lives = toListOf (traverse.reproducing) $ reps
+
+      things = map (`withLiveClient` _client) lives
+  mapM_ (\thing -> renderTile renderer $ over tilePos (`worldToCamera` c') $ thing^.thingTile) things
+
 
   present renderer
 

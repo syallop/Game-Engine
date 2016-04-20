@@ -122,7 +122,7 @@ mkTile = Tile
 defaultTile :: Tile
 defaultTile = mkTile (TileTypeColored white False) (Rectangle (P $ V2 0 0) (V2 1 1))
 
-tilePos :: Lens' Tile Pos 
+tilePos :: Lens' Tile Pos
 tilePos = tileRectangle.rectPos
 
 tilePosX :: Lens' Tile CFloat

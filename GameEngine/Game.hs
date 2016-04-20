@@ -37,6 +37,8 @@ data Game = Game
 
   ,_gameLastTicks :: Word32 -- Number of ticks since initialisation.
   ,_gameTickDelta :: CInt   -- Number of ticks since last check.
+
+  ,_gameFacingRight :: Bool -- Is the player "facing" right?
   }
   deriving Show
 makeLenses ''Game
@@ -108,7 +110,7 @@ initialGame renderer frameWidth frameHeight = do
                                     $ mkCamera (Size $ V2 frameWidth frameHeight)
                                                (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
-  return $ Game quit stage0 0 stages initialCamera 1 0 1
+  return $ Game quit stage0 0 stages initialCamera 1 0 1 True
 
   where
     movingAgent :: Agent (Subject,Thing) Text
@@ -280,10 +282,14 @@ runCommands = foldr runCommand
 runCommand :: Command -> Game -> Game
 runCommand c g = case c of
   MoveLeft
-    -> over gameStage (applyForceSubject (Force $ V2 (-4) 0)) g
+    -> over gameStage (applyForceSubject (Force $ V2 (-4) 0))
+     . set gameFacingRight False
+     $ g
 
   MoveRight
-    -> over gameStage (applyForceSubject (Force $ V2 4 0)) g
+    -> over gameStage (applyForceSubject (Force $ V2 4 0))
+     . set gameFacingRight True
+     $ g
 
   MoveUp
     -> over gameStage (applyForceSubject (Force $ V2 0 0)) g
@@ -335,7 +341,9 @@ runCommand c g = case c of
         in set gameCamera cam' g
 
   Shoot
-    -> g
+    -> let xVel = 2 * if g^.gameFacingRight then 1 else -1
+           b = bullet xVel (g^.gameStage.stageSubject)
+          in over gameStage (addUs Nothing b) g
 
   Quit
     -> set gameQuit True g
@@ -370,4 +378,5 @@ updateTicks g = do
 
 word32ToCInt :: Word32 -> CInt
 word32ToCInt = toEnum . fromEnum
+
 
