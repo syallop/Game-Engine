@@ -31,6 +31,8 @@ module GameEngine.Collect
   ,mapAccumCollect
   ,mapWriteCollect
   ,collected
+
+  ,partitionCollect
   )
   where
 
@@ -154,3 +156,6 @@ mapWriteCollect f collect =
 collected :: Collect t -> [(t,Maybe Name)]
 collected (Collect t _ _) = IM.elems t
 
+partitionCollect :: (t -> Bool) -> Collect t -> (Collect t,Collect t)
+partitionCollect f c = let (ts,fs) = partition (\(t,_) -> f t) $ collected c
+                          in (collect ts,collect fs)

@@ -27,6 +27,7 @@ module GameEngine.Thing
   ,collidesThings
   ,filterCollidesThings
   ,contactDamage
+  ,isDead
 
   ,effectiveThingHitBox
 
@@ -218,6 +219,9 @@ contactDamage t ts = case filterCollidesThings t ts of
   [] -> Nothing
   ts -> Just . sum . map (_thingContactDamage) $ ts
 
+-- Has a thing died/ reached 0 Health?
+isDead :: Thing -> Bool
+isDead t = t^.thingHealth.to atMin
 
 
 {- Utils -}

@@ -85,16 +85,17 @@ makeLenses ''Stage
 -- Update the stage by a single time step, given the number of ticks since the last update
 tickStage :: CInt -> Stage -> Stage
 tickStage dTicks
-  = applyVelocityThings dTicks
-  . applySpeedLimitThings
-  . applyFrictionThings
-  . updateThings
-  . applyGravityThings
+  = removeDeadThings             -- Remove any dead things
+  . applyVelocityThings dTicks   -- Move things by their velocity
+  . applySpeedLimitThings        -- Limit the velocity of things
+  . applyFrictionThings          -- Reduce things velocity by friction if appropriate
+  . updateThings                 -- Use things AI Agent to update them, potentially reproducing new things
+  . applyGravityThings           -- Move things by the effect of gravity
 
-  . applyVelocitySubject dTicks
-  . applySpeedLimitSubject
-  . applyFrictionSubject
-  . applyGravitySubject
+  . applyVelocitySubject dTicks  -- Move subject by its velocity
+  . applySpeedLimitSubject       -- Limit subjects velocity
+  . applyFrictionSubject         -- Reduce subjects velocity by friction if appropriate
+  . applyGravitySubject          -- Move subject by the effect of gravity
 
 -- Set a stage with a background and a subject, and a list of things
 -- TODO: Fail when subject collides with background in starting position.
@@ -290,6 +291,11 @@ updateThings stg
                                                     ) (stg^.stageCollectReproducing)
        in set stageCollectReproducing (fst $ insertAnonymouses newThings updatedThings) stg
 
+-- Remove all dead things from the stage collection
+removeDeadThings :: Stage -> Stage
+removeDeadThings stg =
+  let (deads,alives) = partitionCollect (\rep -> withLiveClient (rep^.reproducing) (isDead . _client)) (stg^.stageCollectReproducing)
+     in set stageCollectReproducing alives stg
 
 
 -- An example client. Handles Text actions, namely walkleft,walkright,jump,shootleft and shootright
