@@ -13,6 +13,7 @@ module GameEngine.Thing
   ,thingHitBox
   ,thingContactDamage
   ,thingContactScore
+  ,thingContactConsumed
 
   ,setMass
   ,setMassless
@@ -59,6 +60,7 @@ import Foreign.C.Types
 import Linear
 
 -- A _thing_ with a drawable tile
+-- AND lots of other configuration options
 data Thing = Thing
   {_thingTile          :: Tile     -- The tile tracks the position of the thing as the top left of its drawable rectangle
   ,_thingIsSolid       :: Bool     -- Whether the thing can be passed through/ pass through things
@@ -67,8 +69,9 @@ data Thing = Thing
   ,_thingHealth        :: Counter  -- Things own health has a min, a current and a max.
   ,_thingHitBox        :: HitBox   -- Area in which it counts as making contact with the thing
 
-  ,_thingContactDamage :: CInt     -- Damage taken (/health gained) for making contact
-  ,_thingContactScore  :: CInt     -- Points gained for making contact
+  ,_thingContactDamage   :: CInt   -- Damage taken (/health gained) for making contact
+  ,_thingContactScore    :: CInt   -- Points gained for making contact
+  ,_thingContactConsumed :: Bool   -- Should the thing disappear on contact with a player?
   }
   deriving (Eq,Show,Typeable)
 makeLenses ''Thing

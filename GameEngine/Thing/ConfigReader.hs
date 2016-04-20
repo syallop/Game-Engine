@@ -108,11 +108,12 @@ parseThing thingFile thingsPath radius tileset = do
                 -> return Nothing
 
               Just (tileType,tile)
-                -> let isSolid              = tileType^.tileTypeIsSolid
-                       hasMass              = isSet "mass" thingConfig
-                       defaultVelocity      = Velocity (V2 0 0)
-                       defaultCounter       = fromJust $ mkCounter maxHealth 0 maxHealth
-                       defaultContactDamage = 0
-                       defaultContactScore  = 0
-                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter NoHitBox defaultContactDamage defaultContactScore
+                -> let isSolid                = tileType^.tileTypeIsSolid
+                       hasMass                = isSet "mass" thingConfig
+                       defaultVelocity        = Velocity (V2 0 0)
+                       defaultCounter         = fromJust $ mkCounter maxHealth 0 maxHealth
+                       defaultContactDamage   = 0
+                       defaultContactScore    = 0
+                       defaultContactConsumed = False
+                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter NoHitBox defaultContactDamage defaultContactScore defaultContactConsumed
 

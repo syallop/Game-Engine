@@ -138,6 +138,9 @@ thingInstanceConfigFmt = ConfigFmt
                   (OptionFmt "defaultContactScore" [])
                   ,DefaultFmt False                [])
 
+  ,(OptionPairFmt (OptionFmt "contactConsumed" [])
+                  (OptionFmt "contactRemain"   [])
+                  ,DefaultFmt False            [])
   ]
 
 
@@ -286,8 +289,9 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
 
                       maxHealth      = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 3 thingInstanceConfig
 
-                      contactDamage  = fromArgs "contactDamage" (\[SomeArg (ArgInt d)] -> fromIntegral d) 0 thingInstanceConfig
-                      contactScore   = fromArgs "contactScore"  (\[SomeArg (ArgInt s)] -> fromIntegral s) 0 thingInstanceConfig
+                      contactDamage   = fromArgs "contactDamage" (\[SomeArg (ArgInt d)] -> fromIntegral d) 0 thingInstanceConfig
+                      contactScore    = fromArgs "contactScore"  (\[SomeArg (ArgInt s)] -> fromIntegral s) 0 thingInstanceConfig
+                      contactConsumed = isSet "contactConsumed" thingInstanceConfig
 
                       emptyAgent :: StageAgent
                       emptyAgent = mkAgent () (\(sub,thing) () -> ("",()))
@@ -311,6 +315,7 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                                            . set thingHealth (fromJust $ mkCounter maxHealth 0 maxHealth)
                                            . set thingContactDamage contactDamage
                                            . set thingContactScore  contactScore
+                                           . set thingContactConsumed contactConsumed
                                            . moveThingBy positionOffset
                                            $ baseThing
 

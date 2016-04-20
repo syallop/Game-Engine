@@ -182,33 +182,65 @@ stageCollisions thing = filterCollidesThings thing . stageThings
 stageTouches :: Thing -> Stage -> [Thing]
 stageTouches thing = filterTouchesThings thing . stageThings
 
+-- Which things does a thing collide with? Cache the thing alongside the key.
+stageCollisions' :: Thing -> Stage -> [(Key,Thing)]
+stageCollisions' thing0 stg = foldCollect f [] (stg^.stageCollectReproducing)
+  where f k mName r acc
+          | collidesThing thing0 thing1 = (k,thing1):acc
+          | otherwise                   = acc
+          where thing1 = (`withLiveClient` _client) . view reproducing $ r
+
+-- Which things does a thing touch? Cache the thing alongside the key.
+stageTouches' :: Thing -> Stage -> [(Key,Thing)]
+stageTouches' thing0 stg = foldCollect f [] (stg^.stageCollectReproducing)
+  where f k mName r acc
+          | touchesThing thing0 thing1 = (k,thing1):acc
+          | otherwise                  = acc
+          where thing1 = (`withLiveClient` _client) . view reproducing $ r
+
+
 -- Apply velocity to the subject by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
 -- Checks collision with the background and other things.
 -- - Apply collision damage
 -- - Apply score increase
+-- - Remove things which disappear on contact
 applyVelocitySubject :: CInt -> Stage -> Stage
 applyVelocitySubject ticks stg =
   let subject                             = stg^.stageSubject
+      -- Modify the amount to move the subject proportional to the number of ticks
       baseDisplacement                    = subject^.thingVelocity.vel
       displacementModifier                = V2 (fromIntegral ticks / 10) (fromIntegral ticks / 10)
       displacement                        = baseDisplacement * displacementModifier
+
+      -- Try and move the subject, accumulating a list of collisions and touches
       (movedSubject,(collisions,touches)) = tryMoveThingByAcc displacement ([],[]) subject validateSubjectMovement
-      collisionDamage                     = sum . map _thingContactDamage $ collisions
-      scoreIncrease                       = sum . map _thingContactScore  $ touches
+
+      -- Total damage of collisions, score increase of touches
+      collisionDamage                     = sum . map (_thingContactDamage . snd) $ collisions
+      scoreIncrease                       = sum . map (_thingContactScore. snd)  $ touches
+      -- Any touched things with "thingContactConsumed" set, should be removed.
+      consumedKeys                        = map fst . filter (\(_,thing) -> thing^.thingContactConsumed) $ touches
+
+      -- Updated score and subject accounting for damage
       newScore                            = stg^.stageScore + scoreIncrease
       damagedSubject                      = over thingHealth (subCounter collisionDamage) movedSubject
-     in set stageScore newScore . set stageSubject damagedSubject $ stg
+     in set stageScore newScore
+      . set stageSubject damagedSubject
+      . over stageCollectReproducing (\c -> foldr deleteKey c consumedKeys) -- remove all consumed things
+      $ stg
   where
-    -- Given an accumulated list of things already collided with and touching, test whether a thing comes to a stop and accumulate
-    -- anything else collided with.
-    validateSubjectMovement :: ([Thing],[Thing]) -> Thing -> (Bool,([Thing],[Thing]))
+    -- Given an accumulated list of keys collided and keys just touching, test whether a thing comes to a stop.
+    --
+    -- Accumulated keys are also cached alongside the value of their thing when it was determined they collided/ touched.
+    validateSubjectMovement :: ([(Key,Thing)],[(Key,Thing)]) -> Thing -> (Bool,([(Key,Thing)],[(Key,Thing)]))
     validateSubjectMovement (accCollisions,accTouches) testThing =
       let collidesTileGrid = collidesStageBackgroundTileGrid stg testThing
-          thingCollisions  = stageCollisions testThing stg
+          thingCollisions  = stageCollisions' testThing stg
           collides         = collidesTileGrid || (not . null $ thingCollisions)
-          thingTouches     = stageTouches testThing stg
+          thingTouches     = stageTouches' testThing stg
          in (not collides,(thingCollisions++accCollisions,thingTouches++accTouches))
+
 
 -- Apply velocity to the things by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
@@ -347,7 +379,17 @@ stageClient t0 = mkClient t0 id applyActionThing
     bulletAgent = mkAgent () (\ob () -> ("",()))
 
     bulletThing :: CFloat -> Thing -> Thing
-    bulletThing x thing = Thing (bulletTile thing) True False (Velocity $ V2 x 0) (fromJust $ mkCounter 1 0 1) NoHitBox 1 0
+    bulletThing x thing = Thing
+      {_thingTile            = bulletTile thing
+      ,_thingIsSolid         = True
+      ,_thingHasMass         = False
+      ,_thingVelocity        = Velocity $ V2 x 0
+      ,_thingHealth          = fromJust $ mkCounter 1 0 1
+      ,_thingHitBox          = NoHitBox -- solid => entire tile is solid hitbox
+      ,_thingContactDamage   = 1
+      ,_thingContactScore    = 0
+      ,_thingContactConsumed = True -- Consumed on hit with player
+      }
 
     bulletTile :: Thing -> Tile
     bulletTile thing = mkTile (TileTypeColored (V4 1 1 1 1) True) (Rectangle (let Pos p = thing^.thingTile.tilePos in P p) (V2 10 10))

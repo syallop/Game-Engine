@@ -14,25 +14,33 @@ module GameEngine.Collect
   ,mkCollect
   ,collect
 
+  {- Membership -}
   ,memberName
   ,memberKey
 
+  {- Lookups -}
   ,lookupKey
   ,lookupName
+  ,getKey
 
+  {- Insertions -}
   ,insertNamed
   ,insertAnonymous
   ,insertAnonymouses
 
+  {- Deletions -}
   ,freeName
   ,deleteName
+  ,deleteKey
 
+  {- Mapping and Misc -}
   ,mapCollect
   ,mapAccumCollect
   ,mapWriteCollect
+  ,foldCollect
   ,collected
-
   ,partitionCollect
+  ,keys
   )
   where
 
@@ -77,12 +85,14 @@ collect ns =
   let (named,anonymous) = partition (isJust . snd) ns
      in mkCollect (map (\(t,Just n) -> (t,n)) named) (map fst anonymous)
 
+{- Membership -}
 memberKey :: Key -> Collect t -> Bool
 memberKey k = IM.member (_key k) . _collectThings
 
 memberName :: Name -> Collect t -> Bool
 memberName n = M.member n . _collectNameKeys
 
+{- Lookups -}
 lookupKey :: Key -> Collect t -> Maybe (t,Maybe Name)
 lookupKey k c = IM.lookup (coerce k) $ c^.collectThings
 
@@ -92,6 +102,11 @@ lookupName n c = do
   (t,_) <- IM.lookup (_key k) (c^.collectThings)
   return (t,k)
 
+getKey :: Key -> Collect t -> (t,Maybe Name)
+getKey k c = fromJust $ lookupKey k c
+
+
+{- Inserting -}
 insertNamed :: Name -> t -> Collect t -> (Collect t,Key)
 insertNamed n t c =
   let nextKey = Key $ _key (c^.collectCurrentKey) + 1
@@ -111,6 +126,8 @@ insertAnonymous t c=
 -- Insert many anonymous things, returning a list of their keys
 insertAnonymouses :: [t] -> Collect t -> (Collect t,[Key])
 insertAnonymouses ts c = foldr (\t (c,ks) -> let (c',k) = insertAnonymous t c in (c',k:ks)) (c,[]) ts
+
+{- Deleting -}
 
 -- If a name is assigned to a thing, unassign the name leaving the thing anonymous
 freeName :: Name -> Collect t -> Collect t
@@ -133,6 +150,20 @@ deleteName n c = case M.lookup n (c^.collectNameKeys) of
   Just k
     -> over collectThings (IM.delete (_key k)) . over collectNameKeys (M.delete n) $ c
 
+-- Delete the target of a key, also removing its name if it had one.
+deleteKey :: Key -> Collect t -> Collect t
+deleteKey (Key k) c = case IM.lookup k (c^.collectThings) of
+  -- No such key
+  Nothing -> c
+
+  Just (t,mName)
+    -> (case mName of
+          Nothing   -> id
+          Just name -> over collectNameKeys (M.delete name)
+       ) . over collectThings (IM.delete k) $ c
+
+{- Mapping & misc -}
+
 -- Map a function over every thing in the Collect, with access to the key and possible name
 mapCollect :: (Key -> Maybe Name -> t -> t) -> Collect t -> Collect t
 mapCollect f = over collectThings (IM.mapWithKey (\k (t,mName) -> (f (Key k) mName t,mName)))
@@ -153,9 +184,17 @@ mapWriteCollect f collect =
   let (accs,collect') = mapAccumCollect (\accs k mName t -> let (acc,t') = f k mName t in (acc:accs,t')) [] collect
      in (mconcat accs,collect')
 
+foldCollect :: (Key -> Maybe Name -> t -> a -> a) -> a -> Collect t -> a
+foldCollect f acc c = IM.foldWithKey (\k (t,mName) acc -> f (Key k) mName t acc) acc (c^.collectThings)
+
 collected :: Collect t -> [(t,Maybe Name)]
 collected (Collect t _ _) = IM.elems t
+
+-- All of the keys
+keys :: Collect t -> [Key]
+keys (Collect t _ _) = map Key $ IM.keys t
 
 partitionCollect :: (t -> Bool) -> Collect t -> (Collect t,Collect t)
 partitionCollect f c = let (ts,fs) = partition (\(t,_) -> f t) $ collected c
                           in (collect ts,collect fs)
+
