@@ -113,5 +113,6 @@ parseThing thingFile thingsPath radius tileset = do
                        defaultVelocity      = Velocity (V2 0 0)
                        defaultCounter       = fromJust $ mkCounter maxHealth 0 maxHealth
                        defaultContactDamage = 0
-                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter NoHitBox defaultContactDamage
+                       defaultContactScore  = 0
+                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter NoHitBox defaultContactDamage defaultContactScore
 

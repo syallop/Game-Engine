@@ -19,6 +19,7 @@ module GameEngine.Stage
   ,stageGravity
   ,stageSpeedLimit
   ,stageThingSpeedLimit
+  ,stageScore
 
   ,tickStage
 
@@ -78,6 +79,8 @@ data Stage = Stage
 
   ,_stageSubjectFriction    :: CFloat
   ,_stageThingFriction      :: CFloat
+
+  ,_stageScore              :: CInt
   } deriving (Show,Eq)
 makeLenses ''Stage
 
@@ -85,7 +88,8 @@ makeLenses ''Stage
 -- Update the stage by a single time step, given the number of ticks since the last update
 tickStage :: CInt -> Stage -> Stage
 tickStage dTicks
-  = removeDeadThings             -- Remove any dead things
+  = debugStage                   -- Execute stage debugging code
+  . removeDeadThings             -- Remove any dead things
   . applyVelocityThings dTicks   -- Move things by their velocity
   . applySpeedLimitThings        -- Limit the velocity of things
   . applyFrictionThings          -- Reduce things velocity by friction if appropriate
@@ -115,7 +119,7 @@ setStage b
          subjectSpeedLimit
          thingSpeedLimit
          subjectFriction
-         thingFriction     = Just $ Stage b s things gravity subjectSpeedLimit thingSpeedLimit subjectFriction thingFriction
+         thingFriction     = Just $ Stage b s things gravity subjectSpeedLimit thingSpeedLimit subjectFriction thingFriction 0
 
 -- Move a subject in a direction if they do not collide with the background
 moveSubjectRight,moveSubjectLeft,moveSubjectDown,moveSubjectUp :: Stage -> Maybe Stage
@@ -147,8 +151,8 @@ setSubjectTile tile stg =
       subject  = stg^.stageSubject
       subject' = set thingTile tile subject
       things   = stageThings stg
-     in if collidesTileGrid (effectiveThingHitBox subject') tileGrid
-        || collidesThings subject' things 
+     in if collidesTileGrid (solidHitBox subject') tileGrid
+        || collidesThings subject' things
           then Nothing
           else Just $ set stageSubject subject' stg
 
@@ -160,7 +164,7 @@ collidesAnything stg thing = collidesStageBackgroundTileGrid stg thing
 
 -- Does a thing collide with the background tilegrid?
 collidesStageBackgroundTileGrid :: Stage -> Thing -> Bool
-collidesStageBackgroundTileGrid stg thing = collidesTileGrid (effectiveThingHitBox thing) (stg^.stageBackground.backgroundTileGrid)
+collidesStageBackgroundTileGrid stg thing = collidesTileGrid (solidHitBox thing) (stg^.stageBackground.backgroundTileGrid)
 
 -- Does a thing collide with any of the things on the stage?
 collidesStageThings :: Stage -> Thing -> Bool
@@ -171,32 +175,40 @@ stageThings :: Stage -> [Thing]
 stageThings stg = map ((`withLiveClient` _client) . view reproducing . fst) . collected $ stg^.stageCollectReproducing
 
 -- Which things does a thing collide with?
-collisions :: Thing -> Stage -> [Thing]
-collisions thing = filterCollidesThings thing . stageThings
+stageCollisions :: Thing -> Stage -> [Thing]
+stageCollisions thing = filterCollidesThings thing . stageThings
+
+-- Which things does a thing touch?
+stageTouches :: Thing -> Stage -> [Thing]
+stageTouches thing = filterTouchesThings thing . stageThings
 
 -- Apply velocity to the subject by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
 -- Checks collision with the background and other things.
--- Applys collision damage of all things touched in a moment.
+-- - Apply collision damage
+-- - Apply score increase
 applyVelocitySubject :: CInt -> Stage -> Stage
 applyVelocitySubject ticks stg =
-  let subject                   = stg^.stageSubject
-      baseDisplacement          = subject^.thingVelocity.vel
-      displacementModifier      = V2 (fromIntegral ticks / 10) (fromIntegral ticks / 10)
-      displacement              = baseDisplacement * displacementModifier
-      (movedSubject,collisions) = tryMoveThingByAcc displacement [] subject validateSubjectMovement
-      collisionDamage           = sum . map (_thingContactDamage) $ collisions
-      damagedSubject            = over thingHealth (subCounter collisionDamage) movedSubject
-     in set stageSubject damagedSubject stg
+  let subject                             = stg^.stageSubject
+      baseDisplacement                    = subject^.thingVelocity.vel
+      displacementModifier                = V2 (fromIntegral ticks / 10) (fromIntegral ticks / 10)
+      displacement                        = baseDisplacement * displacementModifier
+      (movedSubject,(collisions,touches)) = tryMoveThingByAcc displacement ([],[]) subject validateSubjectMovement
+      collisionDamage                     = sum . map _thingContactDamage $ collisions
+      scoreIncrease                       = sum . map _thingContactScore  $ touches
+      newScore                            = stg^.stageScore + scoreIncrease
+      damagedSubject                      = over thingHealth (subCounter collisionDamage) movedSubject
+     in set stageScore newScore . set stageSubject damagedSubject $ stg
   where
-    -- Given an accumulated list of things already collided with, test whether a thing comes to a stop and accumulate
+    -- Given an accumulated list of things already collided with and touching, test whether a thing comes to a stop and accumulate
     -- anything else collided with.
-    validateSubjectMovement :: [Thing] -> Thing -> (Bool,[Thing])
-    validateSubjectMovement accCollisions testThing =
+    validateSubjectMovement :: ([Thing],[Thing]) -> Thing -> (Bool,([Thing],[Thing]))
+    validateSubjectMovement (accCollisions,accTouches) testThing =
       let collidesTileGrid = collidesStageBackgroundTileGrid stg testThing
-          thingCollisions  = collisions testThing stg
+          thingCollisions  = stageCollisions testThing stg
           collides         = collidesTileGrid || (not . null $ thingCollisions)
-         in (not collides,thingCollisions++accCollisions)
+          thingTouches     = stageTouches testThing stg
+         in (not collides,(thingCollisions++accCollisions,thingTouches++accTouches))
 
 -- Apply velocity to the things by interleaving 1px movement in each axis.
 -- Hiting an obstacle in one axis negates velocity in that axis. Movement in the other may continue.
@@ -335,8 +347,11 @@ stageClient t0 = mkClient t0 id applyActionThing
     bulletAgent = mkAgent () (\ob () -> ("",()))
 
     bulletThing :: CFloat -> Thing -> Thing
-    bulletThing x thing = Thing (bulletTile thing) True False (Velocity $ V2 x 0) (fromJust $ mkCounter 1 0 1) NoHitBox 1
+    bulletThing x thing = Thing (bulletTile thing) True False (Velocity $ V2 x 0) (fromJust $ mkCounter 1 0 1) NoHitBox 1 0
 
     bulletTile :: Thing -> Tile
     bulletTile thing = mkTile (TileTypeColored (V4 1 1 1 1) True) (Rectangle (let Pos p = thing^.thingTile.tilePos in P p) (V2 10 10))
+
+debugStage :: Stage -> Stage
+debugStage stg = traceShow (stg^.stageScore) stg
 

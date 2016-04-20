@@ -12,6 +12,7 @@ module GameEngine.Thing
   ,thingHealth
   ,thingHitBox
   ,thingContactDamage
+  ,thingContactScore
 
   ,setMass
   ,setMassless
@@ -26,10 +27,16 @@ module GameEngine.Thing
   ,collidesThing
   ,collidesThings
   ,filterCollidesThings
+
+  ,touchesThing
+  ,touchesThings
+  ,filterTouchesThings
+
   ,contactDamage
   ,isDead
 
-  ,effectiveThingHitBox
+  ,solidHitBox
+  ,presenceHitBox
 
   ,applyForceThing
 
@@ -53,13 +60,15 @@ import Linear
 
 -- A _thing_ with a drawable tile
 data Thing = Thing
-  {_thingTile          :: Tile
-  ,_thingIsSolid       :: Bool
-  ,_thingHasMass       :: Bool
-  ,_thingVelocity      :: Velocity
-  ,_thingHealth        :: Counter
-  ,_thingHitBox        :: HitBox
-  ,_thingContactDamage :: CInt
+  {_thingTile          :: Tile     -- The tile tracks the position of the thing as the top left of its drawable rectangle
+  ,_thingIsSolid       :: Bool     -- Whether the thing can be passed through/ pass through things
+  ,_thingHasMass       :: Bool     -- Whether the thing is effected by gravity
+  ,_thingVelocity      :: Velocity -- Velocity in x and y axis
+  ,_thingHealth        :: Counter  -- Things own health has a min, a current and a max.
+  ,_thingHitBox        :: HitBox   -- Area in which it counts as making contact with the thing
+
+  ,_thingContactDamage :: CInt     -- Damage taken (/health gained) for making contact
+  ,_thingContactScore  :: CInt     -- Points gained for making contact
   }
   deriving (Eq,Show,Typeable)
 makeLenses ''Thing
@@ -198,11 +207,10 @@ tryMoveThingByAcc (V2 x y) acc thing validate = interleaveStateful (abs x) (abs 
                          (Right thing',acc')
                            -> Left ((thing',acc'),delta-1)
 
-
-
+-- TODO implement collide in terms of touch
 -- Do two things collide?
 collidesThing :: Thing -> Thing -> Bool
-collidesThing = on collidesHitBox effectiveThingHitBox
+collidesThing = on collidesHitBox solidHitBox
 
 -- Does a thing collide with a list of things?
 collidesThings :: Thing -> [Thing] -> Bool
@@ -212,16 +220,30 @@ collidesThings = any . collidesThing
 filterCollidesThings :: Thing -> [Thing] -> [Thing]
 filterCollidesThings t = filter (collidesThing t)
 
+-- Do two things touch (regardless of how solid they may be)?
+touchesThing :: Thing -> Thing -> Bool
+touchesThing = on collidesHitBox presenceHitBox
+
+-- Does a thing touch with a list of things?
+touchesThings :: Thing -> [Thing] -> Bool
+touchesThings = any . touchesThing
+
+-- Filter Things which touch a Thing
+filterTouchesThings :: Thing -> [Thing] -> [Thing]
+filterTouchesThings t = filter (touchesThing t)
+
+
 -- No contact  => Nothing
 -- Contact(/s) => Sum damage
 contactDamage :: Thing -> [Thing] -> Maybe CInt
 contactDamage t ts = case filterCollidesThings t ts of
   [] -> Nothing
-  ts -> Just . sum . map (_thingContactDamage) $ ts
+  ts -> Just . sum . map _thingContactDamage $ ts
 
 -- Has a thing died/ reached 0 Health?
 isDead :: Thing -> Bool
 isDead t = t^.thingHealth.to atMin
+
 
 
 {- Utils -}
@@ -265,10 +287,13 @@ applyForceThing (Force (V2 aX aY)) thing =
     then over thingVelocity (\(Velocity (V2 vX vY)) -> Velocity $ V2 (vX + aX) (vY + aY)) thing
     else thing
 
--- Calculate the hitbox, taking into account our solidity and offset in the world, as tracked in the tile.
--- A solid thing with no set hitbox will use the tile boundaries
-effectiveThingHitBox :: Thing -> HitBox
-effectiveThingHitBox thing = case (thing^.thingHitBox,thing^.thingIsSolid) of
+-- Calculate the effective HitBox of the solid area of a thing.
+-- This takes into account the solidity and offset in the world, as tracked by the tile.
+--
+-- - A solid thing with a NoHitBox will use the tile boundaries as the effective HitBox.
+-- - A non-solid thing will give no HitBox, regardless of whether one is set.
+solidHitBox :: Thing -> HitBox
+solidHitBox thing = case (thing^.thingHitBox,thing^.thingIsSolid) of
   -- We have no HitBox but are solid. Use the tile as a hitbox
   (NoHitBox,True)
     -> tileToHitBox (thing^.thingTile)
@@ -283,5 +308,19 @@ effectiveThingHitBox thing = case (thing^.thingHitBox,thing^.thingIsSolid) of
 
   -- We have a hit box and are solid, offset it
   (HitBoxRect r,True)
+    -> HitBoxRect $ over rectPos (+ thing^.thingTile.tilePos) r
+
+-- Calculate the effective HitBox of the area the thing is considered "present" in
+-- (this is whether it is solid and able to be traditionally collided with or not)
+-- Takes into account the offset in the world, as tracked by the tile.
+--
+-- - A solid thing with NoHitBox will use the tile boundaries as the effective HitBox.
+-- - A non-solid thing will similarly still use its HitBox if present and its tile size otherwise.
+presenceHitBox :: Thing -> HitBox
+presenceHitBox thing = case thing^.thingHitBox of
+  NoHitBox
+    -> tileToHitBox (thing^.thingTile)
+
+  HitBoxRect r
     -> HitBoxRect $ over rectPos (+ thing^.thingTile.tilePos) r
 

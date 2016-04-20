@@ -133,6 +133,11 @@ thingInstanceConfigFmt = ConfigFmt
   ,(OptionPairFmt (OptionFmt "contactDamage"        [SomeArgFmt ArgFmtInt])
                   (OptionFmt "defaultContactDamage" [])
                   ,DefaultFmt False                 [])
+
+  ,(OptionPairFmt (OptionFmt "contactScore"        [SomeArgFmt ArgFmtInt])
+                  (OptionFmt "defaultContactScore" [])
+                  ,DefaultFmt False                [])
+
   ]
 
 
@@ -282,6 +287,7 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                       maxHealth      = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 3 thingInstanceConfig
 
                       contactDamage  = fromArgs "contactDamage" (\[SomeArg (ArgInt d)] -> fromIntegral d) 0 thingInstanceConfig
+                      contactScore   = fromArgs "contactScore"  (\[SomeArg (ArgInt s)] -> fromIntegral s) 0 thingInstanceConfig
 
                       emptyAgent :: StageAgent
                       emptyAgent = mkAgent () (\(sub,thing) () -> ("",()))
@@ -304,6 +310,7 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                                            . set thingHitBox hitBox
                                            . set thingHealth (fromJust $ mkCounter maxHealth 0 maxHealth)
                                            . set thingContactDamage contactDamage
+                                           . set thingContactScore  contactScore
                                            . moveThingBy positionOffset
                                            $ baseThing
 
