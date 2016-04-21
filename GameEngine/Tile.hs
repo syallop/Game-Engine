@@ -65,7 +65,7 @@ redC, greenC, blueC, alphaC :: Lens' TileColor Word8
 redC   = _x
 greenC = _y
 blueC  = _z
-alphaC = _x
+alphaC = _w
 
 -- TileColors for convenience
 white,black,red,green,blue :: TileColor

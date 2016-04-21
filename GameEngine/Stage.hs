@@ -18,6 +18,7 @@ module GameEngine.Stage
   ,pushForceSubject
   ,addUs
   ,remainingConsumable
+  ,remainingCollectable
 
   -- Unsafe operations
   -- These functions update the subject in various ways which IGNORE the rest of the stage.
@@ -438,6 +439,10 @@ addUs mName r stg = over stageUs (fst . insert mName r) stg
 -- How many "them" consumables are left?
 remainingConsumable :: Stage -> Int
 remainingConsumable stg = foldrOf traverse (\rep acc -> if rep^.reproducing.to (\l -> withLiveClient l (_thingContactConsumed . _client)) then acc+1 else acc) 0 (stg^.stageThem)
+
+-- How many "them" things are left which dissapear on contact and which dont do any damage
+remainingCollectable :: Stage -> Int
+remainingCollectable stg = foldrOf traverse (\rep acc -> if rep^.reproducing.to (\l -> withLiveClient l (\c -> (_thingContactConsumed . _client $ c) && ((== 0) . _thingContactDamage . _client $ c))) then acc+1 else acc) 0 (stg^.stageThem)
 
 -- An example client. Handles Text actions, namely walkleft,walkright,jump,shootleft and shootright
 stageClient :: Thing       -- relative to thing

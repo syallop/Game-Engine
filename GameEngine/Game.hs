@@ -62,15 +62,48 @@ inferCameraBoundaries g =
       boundaries = V4 l (fromIntegral r) u (fromIntegral d)
     in over gameCamera (setBoundaries boundaries) g
 
+
+-- TODO abstract these set* functions
+
 -- Set the "stageName" txt to the name of the current stage
 setStageName :: Renderer -> Game -> IO Game
 setStageName renderer g = do
-    -- Set a title for the stage
   let stageNames = g^.gameStages.to M.keys
       stageName  = stageNames !! (g^.gameStageIx)
-  stageNameTxt <- mkTxt stageName (Color 112 11 20 maxBound) (g^.gameFont) (Rectangle (P $ V2 0 0) (V2 250 20)) renderer
+  stageNameTxt <- mkTxt stageName (Color 112 11 20 maxBound) (g^.gameFont) (Rectangle (P $ V2 0 0) (V2 128 30)) renderer
   return $ over gameTxts (fst . insertNamed "stageName" stageNameTxt . deleteName "stageName") g
 
+-- Set the "stageScore" txt to the stages score
+setStageScore :: Renderer -> Game -> IO Game
+setStageScore renderer g = do
+  let score = g^.gameStage.stageScore
+  stageScoreTxt <- mkTxt (pack . ("Score:" ++). show $ score) (Color 0 0 0 maxBound) (g^.gameFont) (Rectangle (P $ V2 (128+64) 0) (V2 64 30)) renderer
+  return $ over gameTxts (fst . insertNamed "stageScore" stageScoreTxt . deleteName "stageScore") g
+
+-- Set the "remainingCollectable" txt to the remaining number of consumables on the stage
+setStageRemainingCollectable :: Renderer -> Game -> IO Game
+setStageRemainingCollectable renderer g = do
+  let remaining = g^.gameStage.to remainingCollectable
+      color = Color 217 0 163 maxBound -- "purple"
+  stageRemainingCollectableTxt <- mkTxt (pack . ("To collect:" ++) . show $ remaining) color (g^.gameFont) (Rectangle (P $ V2 (164+64) 0) (V2 128 30)) renderer
+  return $ over gameTxts (fst . insertNamed "stageRemainingCollectable" stageRemainingCollectableTxt . deleteName "stageRemainingCollectable") g
+
+-- Set the "stageSubjectHealth" txt to the subjects health out of its max.
+-- Colored red,yellow,green
+setStageSubjectHealth :: Renderer -> Game -> IO Game
+setStageSubjectHealth renderer g = do
+  let currentHealth = g^.gameStage.stageSubject.thingHealth.counterCount
+      maxHealth     = g^.gameStage.stageSubject.thingHealth.counterMaxCount
+      goodColor     = Color minBound maxBound minBound maxBound -- green
+      okayColor     = Color maxBound maxBound minBound maxBound -- yellow
+      badColor      = Color maxBound minBound minBound maxBound -- red
+      color         = if currentHealth == 1
+                        then badColor
+                        else if currentHealth == maxHealth
+                               then goodColor
+                               else okayColor
+  stageSubjectHealthTxt <- mkTxt (pack $ "Health:" ++ show currentHealth ++ "/" ++ show maxHealth) color (g^.gameFont) (Rectangle (P $ V2 412 0) (V2 128 30)) renderer
+  return $ over gameTxts (fst . insertNamed "stageSubjectHealth" stageSubjectHealthTxt . deleteName "stageSubjectHealth") g
 
 
 -- Execute the game as defined by "R/" directory with a screen size of 640*480
@@ -196,20 +229,22 @@ gameLoop (window,renderer) game0 = do
       shouldQuit = newStage^.stageSubject.thingHealth.to atMin
       game3      = set gameStage newStage game2
 
+  game4 <- setStageScore renderer game3 >>= setStageRemainingCollectable renderer >>= setStageSubjectHealth renderer
+
   -- Render the new game state, which returns whether to quit
-  game4 <- renderGame (window,renderer) game3
+  game5 <- renderGame (window,renderer) game4
 
   -- If the user asked to quit, or the player health is 0, quit.
   -- If the collection of opposing things is empty, progress to the next stage
-  let nextLoop = if shouldQuit || game4^.gameQuit
+  let nextLoop = if shouldQuit || game5^.gameQuit
                    then quitGame
-                   else if game4^.gameStage.to ((== 0) . remainingConsumable)
-                          then if null . drop (game4^.gameStageIx + 1) $ (M.keys $ game4^.gameStages)
+                   else if game5^.gameStage.to ((== 0) . remainingCollectable)
+                          then if null . drop (game5^.gameStageIx + 1) $ (M.keys $ game5^.gameStages)
                                  then winGame -- last level over
                                  else \(w,r) g -> do g' <- nextStage r g
                                                      gameLoop (w,r) g' -- next level
                           else gameLoop -- level not over
-  nextLoop (window,renderer) game4
+  nextLoop (window,renderer) game5
 
 -- Render a step of the game state
 renderGame :: (Window,Renderer) -> Game -> IO Game
