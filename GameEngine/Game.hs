@@ -12,7 +12,7 @@ import Control.Monad
 import Data.Char
 import Data.List hiding (uncons)
 import Data.Maybe
-import Data.Text as T hiding (replicate,foldr,map,toLower,length)
+import Data.Text as T hiding (replicate,foldr,map,toLower,length,null,drop)
 import Foreign.C.Types
 import GHC.Word
 import Linear (V2(..),V4(..))
@@ -170,27 +170,35 @@ gameLoop (window,renderer) game0 = do
   -- calculate the next game state by the effect of all the commands
   let game2 = runCommands game1 commands
 
+  -- Update the stage
+  -- Quit when the player reaches 0 health
+  let newStage   = tickStage (game2^.gameTickDelta) (game2^.gameStage)
+      shouldQuit = newStage^.stageSubject.thingHealth.to atMin
+      game3      = set gameStage newStage game2
+
   -- Render the new game state, which returns whether to quit
-  (shouldQuit,game3) <- renderGame (window,renderer) game2
-  (if shouldQuit then quitGame else gameLoop) (window,renderer) game3
+  game4 <- renderGame (window,renderer) game3
+
+  -- If the user asked to quit, or the player health is 0, quit.
+  -- If the collection of opposing things is empty, progress to the next stage
+  let nextLoop = if shouldQuit || game4^.gameQuit
+                   then quitGame
+                   else if game4^.gameStage.to ((== 0) . remainingConsumable)
+                          then if null . drop (game4^.gameStageIx + 1) $ (M.keys $ game4^.gameStages)
+                                 then winGame -- last level over
+                                 else \(w,r) g -> gameLoop (w,r) (nextStage g) -- next level
+                          else gameLoop -- level not over
+  nextLoop (window,renderer) game4
 
 -- Render a step of the game state
-renderGame :: (Window,Renderer) -> Game -> IO (Bool,Game)
-renderGame (window,renderer) game = if game^.gameQuit then return (True,game) else do
+renderGame :: (Window,Renderer) -> Game -> IO Game
+renderGame (window,renderer) game = do
   -- Screen to white
   rendererDrawColor renderer $= white
 
-  -- Update the stage
-  -- Quit when the player reaches 0 health
-  let newStage   = tickStage (game^.gameTickDelta) (game^.gameStage)
-      shouldQuit = newStage^.stageSubject.thingHealth.to atMin
-      game'      = set gameStage newStage game
-
   -- Shoot a frame of the game
-  shoot (game'^.gameCamera) renderer (game'^.gameStage)
-
-  return (shouldQuit,game')
-
+  shoot (game^.gameCamera) renderer (game^.gameStage)
+  return game
 
 
 data Command
@@ -318,19 +326,10 @@ runCommand c g = case c of
     -> over gamePanSpeed (subtract 1) g
 
   PrevStage
-    -> let stageIx    = g^.gameStageIx
-           stageIx'   = stageIx - 1
-           stages     = g^.gameStages
-           mNextStage = safeIndex (M.elems stages) stageIx'
-          in inferCameraBoundaries $ maybe g (\nextStage -> set gameStage nextStage . set gameStageIx stageIx' $ g) mNextStage
+    -> prevStage g
 
   NextStage
-    -> let stageIx    = g^.gameStageIx
-           stageIx'   = stageIx + 1
-           stages     = g^.gameStages
-           mNextStage = safeIndex (M.elems stages) stageIx'
-          in inferCameraBoundaries $ maybe g (\nextStage -> set gameStage nextStage . set gameStageIx stageIx' $ g) mNextStage
-
+    -> nextStage g
 
   Jump
     -> over gameStage (pushForceSubject (Force $ V2 0 (-10))) g
@@ -348,6 +347,21 @@ runCommand c g = case c of
   Quit
     -> set gameQuit True g
 
+nextStage :: Game -> Game
+nextStage g =
+  let stageIx    = g^.gameStageIx
+      stageIx'   = stageIx + 1
+      stages     = g^.gameStages
+      mNextStage = safeIndex (M.elems stages) stageIx'
+     in inferCameraBoundaries $ maybe g (\nextStage -> set gameStage nextStage . set gameStageIx stageIx' $ g) mNextStage
+
+prevStage :: Game -> Game
+prevStage g =
+  let stageIx    = g^.gameStageIx
+      stageIx'   = stageIx - 1
+      stages     = g^.gameStages
+      mNextStage = safeIndex (M.elems stages) stageIx'
+     in inferCameraBoundaries $ maybe g (\nextStage -> set gameStage nextStage . set gameStageIx stageIx' $ g) mNextStage
 
 
 
@@ -356,6 +370,11 @@ quitGame (window,renderer) g = do
   destroyRenderer renderer
   destroyWindow window
   quit
+
+winGame :: (Window,Renderer) -> Game -> IO ()
+winGame (window,renderer) g = do
+  putStrLn "Win!"
+  quitGame (window,renderer) g
 
 safeIndex :: [a] -> Int -> Maybe a
 safeIndex []     _ = Nothing
@@ -373,7 +392,7 @@ updateTicks g = do
   let last  = g^.gameLastTicks
       delta = total - last
   return $ g{_gameLastTicks = total
-            ,_gameTickDelta = word32ToCInt delta 
+            ,_gameTickDelta = word32ToCInt delta
             }
 
 word32ToCInt :: Word32 -> CInt

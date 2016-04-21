@@ -17,6 +17,7 @@ module GameEngine.Stage
   ,applyForceSubject
   ,pushForceSubject
   ,addUs
+  ,remainingConsumable
 
   -- Unsafe operations
   -- These functions update the subject in various ways which IGNORE the rest of the stage.
@@ -434,6 +435,9 @@ pushForceSubject f stg
 addUs :: Maybe Name -> StageReproducing -> Stage -> Stage
 addUs mName r stg = over stageUs (fst . insert mName r) stg
 
+-- How many "them" consumables are left?
+remainingConsumable :: Stage -> Int
+remainingConsumable stg = foldrOf traverse (\rep acc -> if rep^.reproducing.to (\l -> withLiveClient l (_thingContactConsumed . _client)) then acc+1 else acc) 0 (stg^.stageThem)
 
 -- An example client. Handles Text actions, namely walkleft,walkright,jump,shootleft and shootright
 stageClient :: Thing       -- relative to thing
@@ -489,7 +493,7 @@ bullet x thing = mkReproducing (bulletLive x thing)
     bulletTile :: Thing -> Tile
     bulletTile thing = mkTile (TileTypeColored (V4 1 1 1 1) True) (Rectangle (let Pos p = thing^.thingTile.tilePos in P p) (V2 10 10))
 
-
 debugStage :: Stage -> Stage
-debugStage stg = stg -- traceShow (stg^.stageUs) stg
+debugStage = id
+{-debugStage stg = traceShow (stg^.stageSubject.thingHealth) stg-}
 

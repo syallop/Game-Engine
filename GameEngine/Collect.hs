@@ -17,6 +17,7 @@ module GameEngine.Collect
   {- Membership -}
   ,memberName
   ,memberKey
+  ,nullCollect
 
   {- Lookups -}
   ,lookupKey
@@ -51,7 +52,8 @@ import Control.Arrow
 import Control.Lens
 import Data.Coerce
 import Data.Foldable (Foldable)
-import Data.List hiding (insert)
+import Data.List hiding (insert,null)
+import qualified Data.List as List
 import Data.Maybe
 import Data.Monoid
 import Data.String
@@ -92,6 +94,9 @@ memberKey k = IM.member (_key k) . _collectThings
 
 memberName :: Name -> Collect t -> Bool
 memberName n = M.member n . _collectNameKeys
+
+nullCollect :: Collect t -> Bool
+nullCollect = List.null . keys
 
 {- Lookups -}
 lookupKey :: Key -> Collect t -> Maybe (t,Maybe Name)
