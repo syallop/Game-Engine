@@ -46,6 +46,7 @@ import GameEngine.Stage
 import GameEngine.Thing
 import GameEngine.Tile
 import GameEngine.TileGrid
+import GameEngine.UI.Txt
 
 import Debug.Trace
 
@@ -190,8 +191,8 @@ mkCamera dim boundaries = Just $ Camera (Pos $ V2 0 0) dim boundaries True
 
 -- shoot a frame of the scene, the background, the subject, any actors and props adjusted
 -- for the cameras pan
-shoot :: Camera -> Renderer -> Stage -> IO ()
-shoot c renderer stage = do
+shoot :: Camera -> Renderer -> Stage -> [Txt] -> IO ()
+shoot c renderer stage txts = do
   clear renderer
 
   let unitSize      = stage^.stageBackground.backgroundTileGrid.tileGridUnitSize
@@ -243,6 +244,9 @@ shoot c renderer stage = do
       things = map (`withLiveClient` _client) lives
   mapM_ (\thing -> renderTile renderer $ over tilePos (`worldToCamera` c') $ thing^.thingTile) things
 
+  -- Render and Txt objects above
+  {-mapM_ (renderTxtSolid renderer . over txtPos (`worldToCamera` c')) txts-}
+  mapM_ (renderTxtSolid renderer) txts
 
   present renderer
 

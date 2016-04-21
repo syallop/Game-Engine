@@ -23,5 +23,6 @@ import GameEngine.TileGrid              as G
 import GameEngine.TileGrid.ConfigReader as G
 import GameEngine.TileSet               as G
 import GameEngine.TileSet.ConfigReader  as G
+import GameEngine.UI.Txt                as G
 import GameEngine.Velocity              as G
 

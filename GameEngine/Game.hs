@@ -6,6 +6,7 @@
   #-}
 module Main where
 
+import Data.Foldable (foldrM)
 import Control.Applicative
 import Control.Lens hiding (cons,uncons)
 import Control.Monad
@@ -18,6 +19,7 @@ import GHC.Word
 import Linear (V2(..),V4(..))
 import Linear.Affine (Point(..),lensP)
 import SDL
+import SDL.Raw (Color(..))
 import qualified Data.Map as M
 
 import GameEngine
@@ -39,6 +41,9 @@ data Game = Game
   ,_gameTickDelta :: CInt   -- Number of ticks since last check.
 
   ,_gameFacingRight :: Bool -- Is the player "facing" right?
+
+  ,_gameFont :: TTFFont     -- Font used to draw game txts
+  ,_gameTxts :: Collect Txt -- Collection of txt the game draws
   }
   deriving Show
 makeLenses ''Game
@@ -56,6 +61,16 @@ inferCameraBoundaries g =
       d = tileGridHeight tileGrid
       boundaries = V4 l (fromIntegral r) u (fromIntegral d)
     in over gameCamera (setBoundaries boundaries) g
+
+-- Set the "stageName" txt to the name of the current stage
+setStageName :: Renderer -> Game -> IO Game
+setStageName renderer g = do
+    -- Set a title for the stage
+  let stageNames = g^.gameStages.to M.keys
+      stageName  = stageNames !! (g^.gameStageIx)
+  stageNameTxt <- mkTxt stageName (Color 112 11 20 maxBound) (g^.gameFont) (Rectangle (P $ V2 0 0) (V2 250 20)) renderer
+  return $ over gameTxts (fst . insertNamed "stageName" stageNameTxt . deleteName "stageName") g
+
 
 
 -- Execute the game as defined by "R/" directory with a screen size of 640*480
@@ -110,7 +125,12 @@ initialGame renderer frameWidth frameHeight = do
                                     $ mkCamera (Size $ V2 frameWidth frameHeight)
                                                (V4 boundaryLeft boundaryRight boundaryTop boundaryBottom)
 
-  return $ Game quit stage0 0 stages initialCamera 1 0 1 True
+  --Initialise font subsystem
+  initText
+  ubuntuMonoTTF <- openFont "R/Fonts/ExampleFonts/ubuntu-mono/UbuntuMono-R.ttf" 22
+
+  -- Set a title for the stage
+  setStageName renderer . Game quit stage0 0 stages initialCamera 1 0 1 True ubuntuMonoTTF . collect $ []
 
   where
     movingAgent :: Agent (Subject,Thing) Text
@@ -168,7 +188,7 @@ gameLoop (window,renderer) game0 = do
   game1    <- updateTicks game0
 
   -- calculate the next game state by the effect of all the commands
-  let game2 = runCommands game1 commands
+  game2 <- runCommands renderer game1 commands
 
   -- Update the stage
   -- Quit when the player reaches 0 health
@@ -186,18 +206,16 @@ gameLoop (window,renderer) game0 = do
                    else if game4^.gameStage.to ((== 0) . remainingConsumable)
                           then if null . drop (game4^.gameStageIx + 1) $ (M.keys $ game4^.gameStages)
                                  then winGame -- last level over
-                                 else \(w,r) g -> gameLoop (w,r) (nextStage g) -- next level
+                                 else \(w,r) g -> do g' <- nextStage r g
+                                                     gameLoop (w,r) g' -- next level
                           else gameLoop -- level not over
   nextLoop (window,renderer) game4
 
 -- Render a step of the game state
 renderGame :: (Window,Renderer) -> Game -> IO Game
 renderGame (window,renderer) game = do
-  -- Screen to white
-  rendererDrawColor renderer $= white
-
   -- Shoot a frame of the game
-  shoot (game^.gameCamera) renderer (game^.gameStage)
+  shoot (game^.gameCamera) renderer (game^.gameStage) (game^.gameTxts.to (map fst . collected))
   return game
 
 
@@ -283,85 +301,87 @@ lowerCase t = case uncons t of
   Just (c,cs) -> cons (toLower c) cs
 
 -- Update the Game state by the effect of a string of commands
-runCommands :: Game -> [Command] -> Game
-runCommands = foldr runCommand
+runCommands :: Renderer -> Game -> [Command] -> IO Game
+runCommands renderer = foldrM (runCommand renderer)
 
 -- Update the Game state by the effect of a single command
-runCommand :: Command -> Game -> Game
-runCommand c g = case c of
+runCommand :: Renderer -> Command -> Game -> IO Game
+runCommand renderer c g = case c of
   MoveLeft
-    -> over gameStage (applyForceSubject (Force $ V2 (-4) 0))
+    -> return
+     . over gameStage (applyForceSubject (Force $ V2 (-4) 0))
      . set gameFacingRight False
      $ g
 
   MoveRight
-    -> over gameStage (applyForceSubject (Force $ V2 4 0))
+    -> return
+     . over gameStage (applyForceSubject (Force $ V2 4 0))
      . set gameFacingRight True
      $ g
 
   MoveUp
-    -> over gameStage (applyForceSubject (Force $ V2 0 0)) g
+    -> return . over gameStage (applyForceSubject (Force $ V2 0 0)) $ g
 
   MoveDown
-    -> over gameStage (applyForceSubject (Force $ V2 0 0)) g
+    -> return . over gameStage (applyForceSubject (Force $ V2 0 0)) $ g
 
 
   PanLeft
-    -> over gameCamera (panLeftBy (g^.gamePanSpeed)) g
+    -> return . over gameCamera (panLeftBy (g^.gamePanSpeed)) $ g
 
   PanRight
-    -> over gameCamera (panRightBy (g^.gamePanSpeed)) g
+    -> return . over gameCamera (panRightBy (g^.gamePanSpeed)) $ g
 
   PanDown
-    -> over gameCamera (panDownBy (g^.gamePanSpeed)) g
+    -> return . over gameCamera (panDownBy (g^.gamePanSpeed)) $ g
 
   PanUp
-    -> over gameCamera (panUpBy (g^.gamePanSpeed)) g
+    -> return . over gameCamera (panUpBy (g^.gamePanSpeed)) $ g
 
 
   IncreasePan
-    -> over gamePanSpeed (+1) g
+    -> return . over gamePanSpeed (+1) $ g
 
   DecreasePan
-    -> over gamePanSpeed (subtract 1) g
+    -> return . over gamePanSpeed (subtract 1) $ g
 
   PrevStage
-    -> prevStage g
+    -> prevStage renderer g
 
   NextStage
-    -> nextStage g
+    -> nextStage renderer g
 
   Jump
-    -> over gameStage (pushForceSubject (Force $ V2 0 (-10))) g
+    -> return . over gameStage (pushForceSubject (Force $ V2 0 (-10))) $ g
 
   TrackSubject
     -> let cam  = g^.gameCamera
            cam' = over cameraTrackSubject not cam
-        in set gameCamera cam' g
+        in return . set gameCamera cam' $ g
 
   Shoot
     -> let xVel = 2 * if g^.gameFacingRight then 1 else -1
            b = bullet xVel (g^.gameStage.stageSubject)
-          in over gameStage (addUs Nothing b) g
+          in return . over gameStage (addUs Nothing b) $ g
 
   Quit
-    -> set gameQuit True g
+    -> return . set gameQuit True $ g
 
-nextStage :: Game -> Game
-nextStage g =
+nextStage :: Renderer -> Game -> IO Game
+nextStage renderer g =
   let stageIx    = g^.gameStageIx
       stageIx'   = stageIx + 1
       stages     = g^.gameStages
       mNextStage = safeIndex (M.elems stages) stageIx'
-     in inferCameraBoundaries $ maybe g (\nextStage -> set gameStage nextStage . set gameStageIx stageIx' $ g) mNextStage
+     in setStageName renderer . inferCameraBoundaries . maybe g (\nextStage -> set gameStage nextStage . set gameStageIx stageIx' $ g) $ mNextStage
 
-prevStage :: Game -> Game
-prevStage g =
+prevStage :: Renderer -> Game -> IO Game
+prevStage renderer g =
   let stageIx    = g^.gameStageIx
       stageIx'   = stageIx - 1
       stages     = g^.gameStages
       mNextStage = safeIndex (M.elems stages) stageIx'
-     in inferCameraBoundaries $ maybe g (\nextStage -> set gameStage nextStage . set gameStageIx stageIx' $ g) mNextStage
+     in setStageName renderer . inferCameraBoundaries . maybe g (\nextStage -> set gameStage nextStage . set gameStageIx stageIx' $ g) $ mNextStage
 
 
 
@@ -369,6 +389,7 @@ quitGame :: (Window,Renderer) -> Game -> IO ()
 quitGame (window,renderer) g = do
   destroyRenderer renderer
   destroyWindow window
+  quitText
   quit
 
 winGame :: (Window,Renderer) -> Game -> IO ()

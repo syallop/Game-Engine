@@ -21,6 +21,7 @@ library
 
   build-depends:       base       >=4.7  && <4.9
                      , sdl2       >=2.1  && <2.2
+                     , sdl2-ttf
                      , linear     >=1.20 && <1.21
                      , containers >=0.5  && <0.6
                      , lens
@@ -38,6 +39,7 @@ executable game
 
   build-depends:       base       >=4.7  && <4.9
                      , sdl2       >=2.1  && <2.2
+                     , sdl2-ttf
                      , linear     >=1.20 && <1.21
                      , containers >=0.5  && <0.6
                      , lens

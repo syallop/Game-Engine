@@ -131,7 +131,7 @@ tilePosX = tilePos.pos._x
 tilePosY :: Lens' Tile CFloat
 tilePosY = tilePos.pos._y
 
-tileSize :: Lens' Tile Size 
+tileSize :: Lens' Tile Size
 tileSize = tileRectangle.rectSize
 
 tileWidth :: Lens' Tile CFloat
