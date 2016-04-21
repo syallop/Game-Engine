@@ -144,7 +144,6 @@ posToIndex p tg
   where
     ixs      = integralPosition $ p / (Pos $ V2 unitSize unitSize) 
     unitSize = fromIntegral $ tg^.tileGridUnitSize
-    
 
 -- Is an index withing the TileGrid?
 indexInRange :: V2 CInt -> TileGrid -> Bool

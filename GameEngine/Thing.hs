@@ -14,6 +14,7 @@ module GameEngine.Thing
   ,thingContactDamage
   ,thingContactScore
   ,thingContactConsumed
+  ,thingClimbable
 
   ,setMass
   ,setMassless
@@ -72,6 +73,7 @@ data Thing = Thing
   ,_thingContactDamage   :: CInt   -- Damage taken (/health gained) for making contact
   ,_thingContactScore    :: CInt   -- Points gained for making contact
   ,_thingContactConsumed :: Bool   -- Should the thing disappear on contact with a player?
+  ,_thingClimbable       :: Bool   -- Can the thing be climbed?
   }
   deriving (Eq,Show,Typeable)
 makeLenses ''Thing

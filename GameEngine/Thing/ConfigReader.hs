@@ -115,5 +115,6 @@ parseThing thingFile thingsPath radius tileset = do
                        defaultContactDamage   = 0
                        defaultContactScore    = 0
                        defaultContactConsumed = False
-                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter NoHitBox defaultContactDamage defaultContactScore defaultContactConsumed
+                       defaultClimbable       = False
+                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter NoHitBox defaultContactDamage defaultContactScore defaultContactConsumed defaultClimbable
 

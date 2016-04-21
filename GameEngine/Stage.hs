@@ -16,6 +16,8 @@ module GameEngine.Stage
   -- Interleaving these between "tickStage" should work as expected
   ,applyForceSubject
   ,pushForceSubject
+  ,climbUpSubject
+  ,climbDownSubject
   ,addUs
   ,remainingConsumable
   ,remainingCollectable
@@ -221,6 +223,7 @@ stageCollisions thingsL thing0 stg = foldCollect f [] (stg^.thingsL)
           | otherwise                   = acc
           where thing1 = (`withLiveClient` _client) . view reproducing $ r
 
+
 -- Which "them" things does an "us" thing touch? Cache the thing alongside the key.
 stageTouchesThem :: Thing -> Stage -> [(Key,Thing)]
 stageTouchesThem = stageTouches stageThem
@@ -236,6 +239,10 @@ stageTouches thingsL thing0 stg = foldCollect f [] (stg^.thingsL)
           | touchesThing thing0 thing1 = (k,thing1):acc
           | otherwise                  = acc
           where thing1 = (`withLiveClient` _client) . view reproducing $ r
+
+-- Which "them" things does an "us" thing climb? Cache the thing alongside the key.
+stageClimbsThem :: Thing -> Stage -> [(Key,Thing)]
+stageClimbsThem thing stg = filter (_thingClimbable . snd) . stageTouchesThem thing $ stg
 
 
 -- Apply velocity to the subject by interleaving 1px movement in each axis.
@@ -317,8 +324,13 @@ applyVelocityThing ticks oppositionL thing stg =
 
 
 -- Apply acceleration due to gravity to the subject
+-- Gravity is not applied when touching a climbable object
+-- (This will produce weird effects when holding a non stationary climbable object)
 applyGravitySubject :: Stage -> Stage
-applyGravitySubject stg = applyForceSubject (stg^.stageGravity) stg
+applyGravitySubject stg =
+  if not . null $ stageClimbsThem (stg^.stageSubject) stg
+    then stg
+    else applyForceSubject (stg^.stageGravity) stg
 
 applyGravityUs :: Stage -> Stage
 applyGravityUs = applyGravityThings stageUs
@@ -444,6 +456,22 @@ remainingConsumable stg = foldrOf traverse (\rep acc -> if rep^.reproducing.to (
 remainingCollectable :: Stage -> Int
 remainingCollectable stg = foldrOf traverse (\rep acc -> if rep^.reproducing.to (\l -> withLiveClient l (\c -> (_thingContactConsumed . _client $ c) && ((== 0) . _thingContactDamage . _client $ c))) then acc+1 else acc) 0 (stg^.stageThem)
 
+
+-- Climb the subject up if they are on a climbable thing.
+climbUpSubject :: Stage -> Stage
+climbUpSubject stg = if not . null $ stageClimbsThem (stg^.stageSubject) stg
+  then applyForceSubject (Force $ V2 0 (-1)) stg
+  else stg
+
+-- Climb a subject down if they are on a climbable thing.
+climbDownSubject :: Stage -> Stage
+climbDownSubject stg = if not . null $ stageClimbsThem (stg^.stageSubject) stg
+  then applyForceSubject (Force $ V2 0 1) stg
+  else stg
+
+
+
+
 -- An example client. Handles Text actions, namely walkleft,walkright,jump,shootleft and shootright
 stageClient :: Thing       -- relative to thing
             -> StageClient
@@ -493,6 +521,7 @@ bullet x thing = mkReproducing (bulletLive x thing)
       ,_thingContactDamage   = 1
       ,_thingContactScore    = 0
       ,_thingContactConsumed = True -- Consumed on hit with player
+      ,_thingClimbable       = False
       }
 
     bulletTile :: Thing -> Tile

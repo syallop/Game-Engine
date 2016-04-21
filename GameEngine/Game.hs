@@ -355,11 +355,10 @@ runCommand renderer c g = case c of
      $ g
 
   MoveUp
-    -> return . over gameStage (applyForceSubject (Force $ V2 0 0)) $ g
+    -> return . over gameStage climbUpSubject $ g
 
   MoveDown
-    -> return . over gameStage (applyForceSubject (Force $ V2 0 0)) $ g
-
+    -> return . over gameStage climbDownSubject $ g
 
   PanLeft
     -> return . over gameCamera (panLeftBy (g^.gamePanSpeed)) $ g

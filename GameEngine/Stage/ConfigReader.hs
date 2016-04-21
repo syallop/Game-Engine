@@ -141,6 +141,10 @@ thingInstanceConfigFmt = ConfigFmt
   ,(OptionPairFmt (OptionFmt "contactConsumed" [])
                   (OptionFmt "contactRemain"   [])
                   ,DefaultFmt False            [])
+
+  ,(OptionPairFmt (OptionFmt "climbable"   [])
+                  (OptionFmt "unclimbable" [])
+                  ,DefaultFmt False        [])
   ]
 
 
@@ -293,6 +297,7 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                       contactDamage   = fromArgs "contactDamage" (\[SomeArg (ArgInt d)] -> fromIntegral d) 0 thingInstanceConfig
                       contactScore    = fromArgs "contactScore"  (\[SomeArg (ArgInt s)] -> fromIntegral s) 0 thingInstanceConfig
                       contactConsumed = isSet "contactConsumed" thingInstanceConfig
+                      climbable       = isSet "climbable" thingInstanceConfig
 
                       emptyAgent :: StageAgent
                       emptyAgent = mkAgent () (\(sub,thing) () -> ("",()))
@@ -317,6 +322,7 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                                            . set thingContactDamage contactDamage
                                            . set thingContactScore  contactScore
                                            . set thingContactConsumed contactConsumed
+                                           . set thingClimbable climbable
                                            . moveThingBy positionOffset
                                            $ baseThing
 
