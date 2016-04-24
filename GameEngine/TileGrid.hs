@@ -10,6 +10,8 @@ module GameEngine.TileGrid
   ,tileGridColumnCount
   ,tileGridHeight
   ,tileGridWidth
+  ,tileGridBoundaries
+  ,tileGridRectangle
 
   ,renderTileGrid
 
@@ -78,6 +80,14 @@ tileGridHeight tg = tg^.tileGridUnitSize * tileGridRowCount tg
 -- The absolute width of the longest row of tiles
 tileGridWidth :: TileGrid -> CInt
 tileGridWidth tg = tg^.tileGridUnitSize * tileGridColumnCount tg
+
+-- The absolute width and height boundaries of the longest rows.
+tileGridBoundaries :: TileGrid -> V2 CInt 
+tileGridBoundaries tg = V2 (tileGridWidth tg) (tileGridHeight tg)
+
+-- A rectangle covering the tilegrids area.
+tileGridRectangle :: TileGrid -> Rectangle CInt
+tileGridRectangle tg = Rectangle (P (V2 0 0)) (tileGridBoundaries tg)
 
 renderTileGrid :: Pos -> Size -> Renderer -> TileGrid -> IO ()
 renderTileGrid topLeft (Size (V2 frameWidth frameHeight)) renderer tileGrid = do

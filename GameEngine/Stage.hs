@@ -54,6 +54,7 @@ module GameEngine.Stage
   where
 
 import Control.Arrow
+import Control.Applicative
 import Control.Lens
 import Data.Map.Lens
 import Data.Maybe
@@ -71,6 +72,7 @@ import GameEngine.Counter
 import GameEngine.Force
 import GameEngine.HitBox
 import GameEngine.Position
+import GameEngine.Rectangle
 import GameEngine.Thing
 import GameEngine.Tile
 import GameEngine.TileGrid
@@ -109,6 +111,7 @@ tickStage :: CInt -> Stage -> Stage
 tickStage dTicks
   = debugStage                   -- Execute stage debugging code
   . removeDeadThings             -- Remove any dead things
+  . killStragglers               -- Kill objects which have strayed too far from the borders
 
   . applyVelocityThem dTicks     -- Move "them" things by their velocity
   . applySpeedLimitThem          -- Limit the velocity of "them" things
@@ -298,14 +301,16 @@ applyVelocityThing ticks oppositionL thing stg =
       (movedThing,(collisions,touches))   = tryMoveThingByAcc displacement ([],[]) thing validateThingMovement
 
       -- Total damage of collisions, score increase of touches
+      touchDamage                         = sum . map (_thingContactDamage . snd) $ touches
       collisionDamage                     = sum . map (_thingContactDamage . snd) $ collisions
+      damageTaken                         = touchDamage + collisionDamage
       scoreIncrease                       = sum . map (_thingContactScore  . snd) $ touches
       -- Any touched things with "thingContactConsumed" set, should be removed.
       consumedKeys                        = map fst . filter (\(_,cthing) -> cthing^.thingContactConsumed) $ touches
 
       -- Updated score and thing accounting for damage
       newScore                            = stg^.stageScore + scoreIncrease
-      damagedThing                        = over thingHealth (subCounter collisionDamage) movedThing
+      damagedThing                        = over thingHealth (subCounter damageTaken) movedThing
     in (set stageScore newScore
         . over oppositionL (\c -> foldr deleteKey c consumedKeys) -- remove all consumed things
         $ stg
@@ -316,7 +321,7 @@ applyVelocityThing ticks oppositionL thing stg =
     -- Accumulated keys are also cached alongside the value of their thing when it was determined they collided/ touched.
     validateThingMovement :: ([(Key,Thing)],[(Key,Thing)]) -> Thing -> (Bool,([(Key,Thing)],[(Key,Thing)]))
     validateThingMovement (accCollisions,accTouches) testThing =
-      let touchesTileGrid  = touchesStageBackgroundTileGrid stg testThing
+      let touchesTileGrid  = collidesStageBackgroundTileGrid stg testThing
           thingCollisions  = stageCollisions oppositionL testThing stg
           collides         = touchesTileGrid || (not . null $ thingCollisions)
           thingTouches     = stageTouches oppositionL testThing stg
@@ -426,6 +431,26 @@ removeDeadThings stg =
   let (deads,alives) = partitionCollect (\rep -> withLiveClient (rep^.reproducing) (isDead . _client)) (stg^.stageThem)
      in set stageThem alives stg
 
+-- Remove things which have strayed too far.
+-- (past the boundaries at least)
+killStragglers :: Stage -> Stage
+killStragglers = killStragglerThings stageUs . killStragglerThings stageThem
+
+-- Remove things which have strayed too far.
+-- (past the boundaries)
+-- TODO: Kill some kinds of things (E.G. bullets) which get 'too far' (E.G. two
+-- screens distance). Permenant enemies should be kept.
+killStragglerThings :: Lens' Stage (Collect StageReproducing) -> Stage -> Stage
+killStragglerThings thingsL stg =
+  let area           = stg^.stageBackground.backgroundTileGrid.to tileGridRectangle
+      (deads,alives) = partitionCollect (\rep -> withLiveClient (rep^.reproducing) (\l -> let thingR = l^.client.thingTile.tileRectangle
+                                                                                             in (floor <$> thingR) `outsideRectangle` area
+                                                                                   )
+
+                                        )
+                                        (stg^.thingsL)
+    in set thingsL alives stg
+
 
 -- Apply a force to a subject to change its velocity
 applyForceSubject :: Force -> Stage -> Stage
@@ -454,7 +479,7 @@ remainingConsumable stg = foldrOf traverse (\rep acc -> if rep^.reproducing.to (
 
 -- How many "them" things are left which dissapear on contact and which dont do any damage
 remainingCollectable :: Stage -> Int
-remainingCollectable stg = foldrOf traverse (\rep acc -> if rep^.reproducing.to (\l -> withLiveClient l (\c -> (_thingContactConsumed . _client $ c) && ((== 0) . _thingContactDamage . _client $ c))) then acc+1 else acc) 0 (stg^.stageThem)
+remainingCollectable stg = foldrOf traverse (\rep acc -> if rep^.reproducing.to (\l -> withLiveClient l (\c -> (isCollectable . _client $ c) && ((== 0) . _thingContactDamage . _client $ c))) then acc+1 else acc) 0 (stg^.stageThem)
 
 
 -- Climb the subject up if they are on a climbable thing.
@@ -513,7 +538,7 @@ bullet x thing = mkReproducing (bulletLive x thing)
     bulletThing :: CFloat -> Thing -> Thing
     bulletThing x thing = Thing
       {_thingTile            = bulletTile thing
-      ,_thingIsSolid         = True
+      ,_thingIsSolid         = False 
       ,_thingHasMass         = False
       ,_thingVelocity        = Velocity $ V2 x 0
       ,_thingHealth          = fromJust $ mkCounter 1 0 1

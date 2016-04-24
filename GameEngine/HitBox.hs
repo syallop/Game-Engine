@@ -13,6 +13,7 @@ module GameEngine.HitBox
 
 import GameEngine.Position
 import GameEngine.Size
+import GameEngine.Rectangle
 
 import Control.Lens
 import Data.Maybe
@@ -30,12 +31,6 @@ data HitBox
   deriving (Eq,Show)
 makeLenses ''HitBox
 
-rectPos :: Lens' (Rectangle CFloat) Pos
-rectPos = lens (\(Rectangle (P v) s) -> Pos v) (\(Rectangle (P p0) s) (Pos p1) -> Rectangle (P p1) s)
-
-rectSize :: Lens' (Rectangle CFloat) Size 
-rectSize = lens (\(Rectangle p s) -> Size s) (\(Rectangle p s0) (Size s1) -> Rectangle p s1)
-
 collidesHitBox :: HitBox -> HitBox -> Bool
 collidesHitBox h0 h1 = fromMaybe False $ do
   V4 left0 right0 top0 bottom0 <- hitBoxBoundaries h0
@@ -49,10 +44,5 @@ collidesHitBox h0 h1 = fromMaybe False $ do
 -- leftX,rightX,topY and bottomY positions
 hitBoxBoundaries :: HitBox -> Maybe (V4 CFloat)
 hitBoxBoundaries NoHitBox       = Nothing
-hitBoxBoundaries (HitBoxRect r) = Just $ V4 left right top bottom
-  where
-    left   = r^.rectPos.pos._x
-    right  = left + r^.rectSize.size._x
-    top    = r^.rectPos.pos._y
-    bottom = top + r^.rectSize.size._y
+hitBoxBoundaries (HitBoxRect r) = Just $ rectBoundaries r 
 

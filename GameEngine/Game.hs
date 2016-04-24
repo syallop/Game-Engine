@@ -111,26 +111,31 @@ main :: IO ()
 main = do
   let w = 640
       h = 480
-  (window,renderer) <- initializeWindow w h
-  game              <- initialGame renderer (fromIntegral w) (fromIntegral h)
+  (window,renderer,V2 width height) <- initializeWindow Nothing
+  game <- initialGame renderer (fromIntegral width) (fromIntegral height)
   gameLoop (window,renderer) game
 
 -- Set up the window, etc and the initial game
-initializeWindow :: CInt -> CInt -> IO (Window,Renderer)
-initializeWindow width height = do
+initializeWindow :: Maybe (V2 CInt) -> IO (Window,Renderer,V2 CInt)
+initializeWindow mDimensions = do
   HintRenderScaleQuality $= ScaleLinear
   do renderQuality <- get HintRenderScaleQuality
      when (renderQuality /= ScaleLinear) $
          putStrLn "Linear texture filtering not enabled!"
 
-  window <- createWindow "Game" defaultWindow{windowInitialSize = V2 width height}
+  window <- createWindow "Game" $ case mDimensions of
+                                    Just dim -> defaultWindow{windowInitialSize = dim}
+                                    {-Nothing  -> defaultWindow{windowMode = Fullscreen}-}
+                                    Nothing  -> defaultWindow{windowMode = FullscreenDesktop}
+
+  dim <- get $ windowSize window
   showWindow window
 
-  renderer <- createRenderer window (-1) $ RendererConfig{rendererType = AcceleratedRenderer
+  renderer <- createRenderer window (-1) $ RendererConfig{rendererType          = AcceleratedRenderer
                                                          ,rendererTargetTexture = False
                                                          }
   rendererDrawColor renderer $= V4 maxBound maxBound maxBound maxBound
-  return (window,renderer)
+  return (window,renderer,dim)
 
 
 
@@ -386,7 +391,7 @@ runCommand renderer c g = case c of
     -> nextStage renderer g
 
   Jump
-    -> return . over gameStage (pushForceSubject (Force $ V2 0 (-10))) $ g
+    -> return . over gameStage (pushForceSubject (Force $ V2 0 (-15))) $ g
 
   TrackSubject
     -> let cam  = g^.gameCamera
@@ -421,6 +426,7 @@ prevStage renderer g =
 
 quitGame :: (Window,Renderer) -> Game -> IO ()
 quitGame (window,renderer) g = do
+  putStrLn "Quit!"
   destroyRenderer renderer
   destroyWindow window
   quitText

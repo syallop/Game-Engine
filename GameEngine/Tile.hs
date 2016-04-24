@@ -23,6 +23,7 @@ module GameEngine.Tile
   ,tileSize
   ,tileWidth
   ,tileHeight
+  ,tileRectangle
 
   ,tileL
   ,tileR

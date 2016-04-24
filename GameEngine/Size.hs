@@ -2,7 +2,12 @@
     GeneralizedNewtypeDeriving
   , TemplateHaskell
   #-}
-module GameEngine.Size where
+module GameEngine.Size
+  (Size(..)
+  ,size
+  ,integralSize
+  )
+  where
 
 import Control.Lens
 import Foreign.C.Types

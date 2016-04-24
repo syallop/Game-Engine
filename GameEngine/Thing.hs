@@ -37,6 +37,12 @@ module GameEngine.Thing
   ,contactDamage
   ,isDead
 
+  ,isDamaging
+  ,isHealing
+  ,isConsumable
+  ,isClimbable
+  ,isCollectable
+
   ,solidHitBox
   ,presenceHitBox
 
@@ -55,7 +61,7 @@ import GameEngine.Velocity
 import Control.Lens
 import Data.Function
 import Data.Map hiding (filter,map)
-import Data.Text hiding (any,filter,map)
+import Data.Text hiding (any,filter,map,all)
 import Data.Typeable
 import Foreign.C.Types
 import Linear
@@ -249,6 +255,30 @@ contactDamage t ts = case filterCollidesThings t ts of
 isDead :: Thing -> Bool
 isDead t = t^.thingHealth.to atMin
 
+
+{- Predicates -}
+
+-- Does a thing deal damage on contact
+isDamaging :: Thing -> Bool
+isDamaging t = t^.thingContactDamage > 0
+
+-- Does a thing heal (do negative damage) on contact?
+isHealing :: Thing -> Bool
+isHealing t = t^.thingContactDamage < 0
+
+-- Does a thing dissapear upon contact?
+isConsumable :: Thing -> Bool
+isConsumable t = t^.thingContactConsumed
+
+-- Can a thing be climbed?
+isClimbable :: Thing -> Bool
+isClimbable t = t^.thingClimbable
+
+-- Something is collectable if it:
+-- - Is consumed on contact
+-- - Is not damaging
+isCollectable :: Thing -> Bool
+isCollectable t = all ($ t) [isConsumable,not . isDamaging]
 
 
 {- Utils -}
