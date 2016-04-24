@@ -16,6 +16,7 @@ module GameEngine.TileGrid
   ,renderTileGrid
 
   ,collidesTileGrid
+  ,climbsTileGrid
 
   ,Rows(..),Row(..)
   ,row,rows
@@ -74,7 +75,7 @@ tileGridColumnCount :: TileGrid -> CInt
 tileGridColumnCount = toEnum . maximum . map (length . _row) . view (tileGridRows.rows)
 
 -- The absolute height of the tiles
-tileGridHeight :: TileGrid -> CInt 
+tileGridHeight :: TileGrid -> CInt
 tileGridHeight tg = tg^.tileGridUnitSize * tileGridRowCount tg
 
 -- The absolute width of the longest row of tiles
@@ -82,7 +83,7 @@ tileGridWidth :: TileGrid -> CInt
 tileGridWidth tg = tg^.tileGridUnitSize * tileGridColumnCount tg
 
 -- The absolute width and height boundaries of the longest rows.
-tileGridBoundaries :: TileGrid -> V2 CInt 
+tileGridBoundaries :: TileGrid -> V2 CInt
 tileGridBoundaries tg = V2 (tileGridWidth tg) (tileGridHeight tg)
 
 -- A rectangle covering the tilegrids area.
@@ -115,13 +116,17 @@ renderTileGrid topLeft (Size (V2 frameWidth frameHeight)) renderer tileGrid = do
                          (r^.row)
                  return (yPos+tileUnitSize)
          )
-         (0 :: CInt) 
+         (0 :: CInt)
          (tileGrid^.tileGridRows.rows)
 
 
 -- Does a Hitbox collide with the TileGrid?
 collidesTileGrid :: HitBox -> TileGrid -> Bool
 collidesTileGrid hb tg = any (\ix -> maybe False (view tileTypeIsSolid) $ indexTileType ix tg) $ coversIndexes hb tg
+
+-- Does a Hitbox touch a climbable tile on the TileGrid?
+climbsTileGrid :: HitBox -> TileGrid -> Bool
+climbsTileGrid hb tg = any (\ix -> maybe False (view tileTypeIsClimbable) $ indexTileType ix tg) $ coversIndexes hb tg
 
 -- List of tile indexes covered by a HitBox in a TileGrid
 coversIndexes :: HitBox -> TileGrid -> [V2 CInt]

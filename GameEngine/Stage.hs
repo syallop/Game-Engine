@@ -201,6 +201,10 @@ collidesStageBackgroundTileGrid stg thing = collidesTileGrid (solidHitBox thing)
 touchesStageBackgroundTileGrid :: Stage -> Thing -> Bool
 touchesStageBackgroundTileGrid stg thing = collidesTileGrid (presenceHitBox thing) (stg^.stageBackground.backgroundTileGrid)
 
+-- Can a thing climb the background tilegrid?
+climbsStageBackgroundTileGrid :: Stage -> Thing -> Bool
+climbsStageBackgroundTileGrid stg thing = climbsTileGrid (solidHitBox thing) (stg^.stageBackground.backgroundTileGrid)
+
 -- Does a thing collide with any of the things on the stage?
 collidesStageThings :: Stage -> Thing -> Bool
 collidesStageThings stg thing = collidesThings thing (stageThings stg)
@@ -335,7 +339,9 @@ applyGravitySubject :: Stage -> Stage
 applyGravitySubject stg =
   if not . null $ stageClimbsThem (stg^.stageSubject) stg
     then stg
-    else applyForceSubject (stg^.stageGravity) stg
+    else if climbsStageBackgroundTileGrid stg (stg^.stageSubject)
+           then stg
+           else applyForceSubject (stg^.stageGravity) stg
 
 applyGravityUs :: Stage -> Stage
 applyGravityUs = applyGravityThings stageUs
@@ -486,13 +492,18 @@ remainingCollectable stg = foldrOf traverse (\rep acc -> if rep^.reproducing.to 
 climbUpSubject :: Stage -> Stage
 climbUpSubject stg = if not . null $ stageClimbsThem (stg^.stageSubject) stg
   then applyForceSubject (Force $ V2 0 (-1)) stg
-  else stg
+  else if climbsStageBackgroundTileGrid stg (stg^.stageSubject)
+         then applyForceSubject (Force $ V2 0 (-1)) stg
+         else stg
 
 -- Climb a subject down if they are on a climbable thing.
 climbDownSubject :: Stage -> Stage
 climbDownSubject stg = if not . null $ stageClimbsThem (stg^.stageSubject) stg
   then applyForceSubject (Force $ V2 0 1) stg
-  else stg
+  else if climbsStageBackgroundTileGrid stg (stg^.stageSubject)
+         then applyForceSubject (Force $ V2 0 1) stg
+         else stg
+
 
 
 
@@ -550,7 +561,7 @@ bullet x thing = mkReproducing (bulletLive x thing)
       }
 
     bulletTile :: Thing -> Tile
-    bulletTile thing = mkTile (TileTypeColored (V4 1 1 1 1) True) (Rectangle (let Pos p = thing^.thingTile.tilePos in P p) (V2 10 10))
+    bulletTile thing = mkTile (TileTypeColored (V4 1 1 1 1) True False) (Rectangle (let Pos p = thing^.thingTile.tilePos in P p) (V2 10 10))
 
 debugStage :: Stage -> Stage
 debugStage = id

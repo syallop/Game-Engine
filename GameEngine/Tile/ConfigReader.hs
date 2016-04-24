@@ -40,6 +40,10 @@ tileConfigFmt = ConfigFmt
                   (OptionFmt "intangible" [])
                   ,DefaultFmt False       [])
 
+  ,(OptionPairFmt (OptionFmt "climbable"   [])
+                  (OptionFmt "unclimbable" [])
+                  ,DefaultFmt False        [])
+
   ,(OptionPairFmt (OptionFmt "colored"   [SomeArgFmt ArgFmtInt
                                          ,SomeArgFmt ArgFmtInt
                                          ,SomeArgFmt ArgFmtInt
@@ -64,17 +68,18 @@ parseTileType mTexture configFile tilesetPath = do
     -- Successful parse, means we informally know each of the required options is set
     -- and has args in the correct format. Partial functions!
     Right tileConfig
-      -> do let mIOTexture = (\(texFile,renderer) -> loadTexture renderer (tilesetPath ++ "/" ++ texFile)) <$> mTexture
-            let isSolid    = isSet "solid" tileConfig
+      -> do let mIOTexture  = (\(texFile,renderer) -> loadTexture renderer (tilesetPath ++ "/" ++ texFile)) <$> mTexture
+                isSolid     = isSet "solid"     tileConfig
+                isClimbable = isSet "climbable" tileConfig
             case mIOTexture of
               Nothing
-                -> return $ Just $ fromArgs "colored" (\[SomeArg (ArgInt r),SomeArg (ArgInt g),SomeArg (ArgInt b), SomeArg (ArgInt a)] -> TileTypeColored (V4 (conv r) (conv g) (conv b) (conv a)) isSolid)
-                                                      (TileTypeInvisible isSolid)
+                -> return $ Just $ fromArgs "colored" (\[SomeArg (ArgInt r),SomeArg (ArgInt g),SomeArg (ArgInt b), SomeArg (ArgInt a)] -> TileTypeColored (V4 (conv r) (conv g) (conv b) (conv a)) isSolid isClimbable)
+                                                      (TileTypeInvisible isSolid isClimbable)
                                                       tileConfig
 
               Just ioTexture
                 -> do texture <- ioTexture
-                      return $ Just $ TileTypeTextured texture isSolid
+                      return $ Just $ TileTypeTextured texture isSolid isClimbable
   where
     conv :: Int -> Word8
     conv = toEnum . fromEnum

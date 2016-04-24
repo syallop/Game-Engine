@@ -245,7 +245,7 @@ shoot c renderer stage txts = do
   mapM_ (\thing -> renderTile renderer $ over tilePos (`worldToCamera` c') $ thing^.thingTile) things
 
   -- Render a semi-transparent panel at the top
-  renderTile renderer (mkTile (TileTypeColored (V4 0 0 0 minBound) False) (Rectangle (P $ V2 0 0) (V2 640 40)))
+  renderTile renderer (mkTile (TileTypeColored (V4 0 0 0 minBound) False False) (Rectangle (P $ V2 0 0) (V2 640 40)))
 
   -- Render and Txt objects above
   {-mapM_ (renderTxtSolid renderer . over txtPos (`worldToCamera` c')) txts-}

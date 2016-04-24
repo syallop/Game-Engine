@@ -92,7 +92,7 @@ parseThing thingFile thingsPath radius tileset = do
                           -- Not found
                           Nothing
                             -- Because no name was specified. Use an invisible, non solid tile
-                            | tileName == "" -> Just (TileTypeInvisible False,mkTile (TileTypeInvisible False) (Rectangle defaultPosition (V2 radius radius)))
+                            | tileName == "" -> Just (TileTypeInvisible False False,mkTile (TileTypeInvisible False False) (Rectangle defaultPosition (V2 radius radius)))
                             -- Because it doesnt exist in the tileset
                             | otherwise      -> Nothing
 
@@ -109,12 +109,12 @@ parseThing thingFile thingsPath radius tileset = do
 
               Just (tileType,tile)
                 -> let isSolid                = tileType^.tileTypeIsSolid
+                       isClimbable            = tileType^.tileTypeIsClimbable
                        hasMass                = isSet "mass" thingConfig
                        defaultVelocity        = Velocity (V2 0 0)
                        defaultCounter         = fromJust $ mkCounter maxHealth 0 maxHealth
                        defaultContactDamage   = 0
                        defaultContactScore    = 0
                        defaultContactConsumed = False
-                       defaultClimbable       = False
-                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter NoHitBox defaultContactDamage defaultContactScore defaultContactConsumed defaultClimbable
+                      in return $ Just $ Thing tile isSolid hasMass defaultVelocity defaultCounter NoHitBox defaultContactDamage defaultContactScore defaultContactConsumed isClimbable
 

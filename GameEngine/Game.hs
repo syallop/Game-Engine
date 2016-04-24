@@ -193,18 +193,18 @@ initialGame renderer frameWidth frameHeight = do
     shootingAgent = mkAgent reloadRate actF
       where
         reloadRate :: Int
-        reloadRate = 5
+        reloadRate = 200
 
         actF :: (Subject,Thing) -> Int -> (Text,Int)
         actF (subject,selfThing) st
 
           -- enough time has passed to shoot, subject is left => shootleft
           | st == 0 && subject^.thingTile.tilePosX < selfThing^.thingTile.tilePosX
-           = ("shootleft",5)
+           = ("shootleft",reloadRate)
 
         -- enough time has passed to shoot, subject is right => shootright
           | st == 0 && selfThing^.thingTile.tilePosX < subject^.thingTile.tilePosX
-           = ("shootright",5)
+           = ("shootright",reloadRate)
 
           -- subject left => walk left
           | subject^.thingTile.tilePosX < selfThing^.thingTile.tilePosX

@@ -10,6 +10,7 @@ module GameEngine.Tile
   ,TileType(..)
   ,tileTypeColor
   ,tileTypeIsSolid
+  ,tileTypeIsClimbable
   ,tileTypeTexture
   ,loadTileTypeTextured
 
@@ -81,24 +82,27 @@ instance Show Texture where
 
 data TileType
   = TileTypeColored
-    {_tileTypeColor   :: TileColor
-    ,_tileTypeIsSolid :: Bool
+    {_tileTypeColor       :: TileColor
+    ,_tileTypeIsSolid     :: Bool
+    ,_tileTypeIsClimbable :: Bool
     }
 
   | TileTypeTextured
     {_tileTypeTexture :: Texture
     ,_tileTypeIsSolid :: Bool
+    ,_tileTypeIsClimbable :: Bool
     }
 
   | TileTypeInvisible
     {_tileTypeIsSolid :: Bool
+    ,_tileTypeIsClimbable :: Bool
     }
   deriving (Eq,Show)
 makeLenses ''TileType
 
 -- load a new texture into a textured tiletype
-loadTileTypeTextured :: Bool -> FilePath -> Renderer -> IO TileType
-loadTileTypeTextured isSolid texPath renderer = loadTexture renderer texPath >>= return . (`TileTypeTextured` isSolid)
+loadTileTypeTextured :: Bool -> Bool -> FilePath -> Renderer -> IO TileType
+loadTileTypeTextured isSolid isClimbable texPath renderer = loadTexture renderer texPath >>= return . (\t -> TileTypeTextured t isSolid isClimbable)
 
 -- Load a BMP texture from a file
 loadTexture :: Renderer -> FilePath -> IO Texture
@@ -121,7 +125,7 @@ mkTile = Tile
 
 -- A non-solid, white,1by1 tile at 0,0
 defaultTile :: Tile
-defaultTile = mkTile (TileTypeColored white False) (Rectangle (P $ V2 0 0) (V2 1 1))
+defaultTile = mkTile (TileTypeColored white False False) (Rectangle (P $ V2 0 0) (V2 1 1))
 
 tilePos :: Lens' Tile Pos
 tilePos = tileRectangle.rectPos
@@ -191,14 +195,14 @@ moveTileU u = moveTileD (-1* u)
 -- draw a tile
 renderTile :: Renderer -> Tile -> IO ()
 renderTile renderer t = case t^.tileType of
-  TileTypeTextured tex _
+  TileTypeTextured tex _ _
     -> copy renderer tex Nothing $ Just $ floor <$> t^.tileRectangle
 
-  TileTypeColored color _
+  TileTypeColored color _ _
     -> do rendererDrawColor renderer $= color
           fillRect renderer $ Just $ floor <$> t^.tileRectangle
 
-  TileTypeInvisible _
+  TileTypeInvisible _ _
     -> return ()
 
 tileToHitBox :: Tile -> HitBox
