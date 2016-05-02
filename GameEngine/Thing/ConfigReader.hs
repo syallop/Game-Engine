@@ -83,7 +83,7 @@ parseThing thingFile thingsPath radius tileset = do
       -> do let tileName = fromArgs "tile" (\[SomeArg (ArgText tileName)] -> tileName) "" thingConfig
                 defaultPosition = P $ V2 0 0
 
-                maxHealth = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 3 thingConfig
+                maxHealth = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 50 thingConfig
 
             -- Attempt to load the named tile.
             -- Cache against the tiletype so we can inherit properties from the tile like solidness

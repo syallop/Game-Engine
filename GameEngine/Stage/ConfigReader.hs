@@ -202,7 +202,7 @@ parseStage agents stageDir stagesPath renderer = do
             baseThings <- parseThings ("R/Things/" ++ unpack baseThingsName) tileset unitSize
 
             -- parse all the things, and extract one named "player" to use as the subject
-            things     <- parseThingInstances baseThings agents (stagesPath ++ "/" ++ stageDir)
+            things     <- parseThingInstances unitSize baseThings agents (stagesPath ++ "/" ++ stageDir)
 
             let mPlayer = lookupName "player" things
                 them    = deleteName "player" things
@@ -240,8 +240,8 @@ parseBackground stagePath tileset aliases unitSize renderer = do
 -- Given a set of base things which may be inherited from and a path to a directory of thing instance files,
 -- parse each thing instance file and instantiate the base thing with the given configuration options.
 -- Fileformat: NAME.thinginstance
-parseThingInstances :: Collect Thing -> Collect StageAgent -> FilePath -> IO (Collect StageReproducing)
-parseThingInstances baseThings agents stagePath = do
+parseThingInstances :: CFloat -> Collect Thing -> Collect StageAgent -> FilePath -> IO (Collect StageReproducing)
+parseThingInstances unitSize baseThings agents stagePath = do
   files <- listDirectory stagePath
 
   -- Get the files with a ".thinginstance" extension
@@ -249,7 +249,7 @@ parseThingInstances baseThings agents stagePath = do
 
   -- Associate the NAME of all thing instnace files to their parsed things
   -- mThingInstances :: [(Text,Maybe (Reproducing Thing Pos ()))]
-  mThingInstances <- mapM (\thingFile -> (pack . name $ thingFile,) <$> parseThingInstance baseThings agents thingFile stagePath) thingInstanceFiles
+  mThingInstances <- mapM (\thingFile -> (pack . name $ thingFile,) <$> parseThingInstance unitSize baseThings agents thingFile stagePath) thingInstanceFiles
 
   -- Silently drop all where the config file failed to parse
   let thingInstances :: [(Text,StageReproducing)]
@@ -265,8 +265,8 @@ parseThingInstances baseThings agents stagePath = do
 
 -- Given a context of base Things, a thing instance file under a stage filepath,
 -- parse the thing instance file and create a thing, inheriting from the base thing.
-parseThingInstance :: Collect Thing -> Collect StageAgent -> FilePath -> FilePath -> IO (Maybe StageReproducing)
-parseThingInstance baseThings agents thingInstanceFile stagePath = do
+parseThingInstance :: CFloat -> Collect Thing -> Collect StageAgent -> FilePath -> FilePath -> IO (Maybe StageReproducing)
+parseThingInstance unitSize baseThings agents thingInstanceFile stagePath = do
   res <- parseConfigFile thingInstanceConfigFmt (stagePath ++ "/" ++ thingInstanceFile)
   case res of
     -- Failed to parse thing instance file
@@ -292,7 +292,7 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                                                                -> HitBoxRect (Rectangle (P $ V2 (conv x) (conv y)) (V2 (conv w) (conv h)))
                                                              ) NoHitBox thingInstanceConfig
 
-                      maxHealth      = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 3 thingInstanceConfig
+                      maxHealth      = fromArgs "maxHealth" (\[SomeArg (ArgInt h)] -> toEnum . fromEnum $ h) 50 thingInstanceConfig
 
                       contactDamage   = fromArgs "contactDamage" (\[SomeArg (ArgInt d)] -> fromIntegral d) 0 thingInstanceConfig
                       contactScore    = fromArgs "contactScore"  (\[SomeArg (ArgInt s)] -> fromIntegral s) 0 thingInstanceConfig
@@ -323,7 +323,7 @@ parseThingInstance baseThings agents thingInstanceFile stagePath = do
                                            . set thingContactScore  contactScore
                                            . set thingContactConsumed contactConsumed
                                            . set thingClimbable climbable
-                                           . moveThingBy positionOffset
+                                           . moveThingBy (positionOffset * V2 unitSize unitSize)
                                            $ baseThing
 
                                  return $ Just $ mkReproducing $ mkLive (stageClient thing) agent
