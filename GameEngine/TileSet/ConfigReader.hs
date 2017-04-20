@@ -23,7 +23,7 @@ import GameEngine.TileSet
 import Control.Applicative
 import Data.Text hiding (map,dropWhile,drop,takeWhile,foldr,filter)
 import SDL
-import System.Directory
+import System.Directory hiding (listDirectory)
 import qualified Data.Map as Map
 
 -- Given a path to a directory of tile config files and possible textures,

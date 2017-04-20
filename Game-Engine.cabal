@@ -1,0 +1,120 @@
+name:                Game-Engine
+version:             0.1.0.0
+synopsis:            Pure, functional SDL based 2D game engine.
+description:         A small pure, functional SDL game engine with 2D tiles,
+                     forces, collision detection and scriptable config for
+                     defining AI/ Entities/ TileSets/ Levels and UI
+                     functionality.
+author:              Samuel A. Yallop
+maintainer:          syallop@gmail.com
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  other-extensions:    PatternSynonyms
+                     , OverloadedStrings
+
+  exposed-modules:     GameEngine
+
+  other-modules:      GameEngine.AI
+                    , GameEngine.AI.Agent
+                    , GameEngine.AI.Client
+                    , GameEngine.AI.Live
+                    , GameEngine.AI.Reproducing
+                    , GameEngine.Background
+                    , GameEngine.Camera
+                    , GameEngine.Collect
+                    , GameEngine.ConfigReader
+                    , GameEngine.ConfigReader.Arg
+                    , GameEngine.ConfigReader.ArgFmt
+                    , GameEngine.ConfigReader.Config
+                    , GameEngine.ConfigReader.ConfigFmt
+                    , GameEngine.ConfigReader.Modifier
+                    , GameEngine.ConfigReader.Option
+                    , GameEngine.ConfigReader.OptionFmt
+                    , GameEngine.ConfigReader.Parser
+                    , GameEngine.Counter
+                    , GameEngine.Force
+                    , GameEngine.HitBox
+                    , GameEngine.Position
+                    , GameEngine.Rectangle
+                    , GameEngine.Size
+                    , GameEngine.Stage
+                    , GameEngine.Stage.ConfigReader
+                    , GameEngine.Thing
+                    , GameEngine.Thing.ConfigReader
+                    , GameEngine.Tile
+                    , GameEngine.Tile.ConfigReader
+                    , GameEngine.TileGrid
+                    , GameEngine.TileGrid.ConfigReader
+                    , GameEngine.TileSet
+                    , GameEngine.TileSet.ConfigReader
+                    , GameEngine.UI.Txt
+                    , GameEngine.Velocity
+
+  build-depends:       base
+                     , sdl2
+                     , sdl2-ttf
+                     , linear
+                     , containers
+                     , lens
+                     , megaparsec
+                     , string-conv
+                     , directory
+                     , text
+  default-language:    Haskell2010
+
+executable game
+  main-is:             GameEngine/Game.hs
+  other-extensions:    PatternSynonyms
+                     , OverloadedStrings
+
+  other-modules: GameEngine
+               , GameEngine.AI
+        , GameEngine.AI.Agent
+        , GameEngine.AI.Client
+        , GameEngine.AI.Live
+        , GameEngine.AI.Reproducing
+        , GameEngine.Background
+        , GameEngine.Camera
+        , GameEngine.Collect
+        , GameEngine.ConfigReader
+        , GameEngine.ConfigReader.Arg
+        , GameEngine.ConfigReader.ArgFmt
+        , GameEngine.ConfigReader.Config
+        , GameEngine.ConfigReader.ConfigFmt
+        , GameEngine.ConfigReader.Modifier
+        , GameEngine.ConfigReader.Option
+        , GameEngine.ConfigReader.OptionFmt
+        , GameEngine.ConfigReader.Parser
+        , GameEngine.Counter
+        , GameEngine.Force
+        , GameEngine.HitBox
+        , GameEngine.Position
+        , GameEngine.Rectangle
+        , GameEngine.Size
+        , GameEngine.Stage
+        , GameEngine.Stage.ConfigReader
+        , GameEngine.Thing
+        , GameEngine.Thing.ConfigReader
+        , GameEngine.Tile
+        , GameEngine.Tile.ConfigReader
+        , GameEngine.TileGrid
+        , GameEngine.TileGrid.ConfigReader
+        , GameEngine.TileSet
+        , GameEngine.TileSet.ConfigReader
+        , GameEngine.UI.Txt
+        , GameEngine.Velocity
+
+  build-depends:       base
+                     , sdl2
+                     , sdl2-ttf
+                     , linear
+                     , containers
+                     , lens
+                     , megaparsec
+                     , directory
+                     , text
+                     , string-conv
+  default-language:    Haskell2010
+

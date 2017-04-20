@@ -1,0 +1,7 @@
+resolver: lts-8.9
+packages:
+- '.'
+- dep/sdl2-ttf/
+extra-deps: []
+flags: {}
+extra-package-dbs: []

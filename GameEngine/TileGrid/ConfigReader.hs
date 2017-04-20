@@ -13,6 +13,8 @@ module GameEngine.TileGrid.ConfigReader
   )
   where
 
+import Prelude hiding (readFile)
+
 import GameEngine.ConfigReader
 import GameEngine.ConfigReader.Arg
 import GameEngine.ConfigReader.ArgFmt
@@ -31,6 +33,9 @@ import Foreign.C.Types
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import qualified Data.Map as Map
+
+import Data.String.Conv
+import Data.Text.IO (readFile)
 
 type Aliases = Map.Map Text Alias
 type Alias   = Maybe Text
@@ -136,3 +141,6 @@ aliasNameP aliasMap = do
 
 tileSepP = skipSome (choice [string' " ",string' "\t"])
 
+
+parseFromFile :: Parser (Maybe TileGrid) -> FilePath -> IO (Either (ParseError Char Dec) (Maybe TileGrid))
+parseFromFile p file = runParser p file <$> readFile (toS file)
